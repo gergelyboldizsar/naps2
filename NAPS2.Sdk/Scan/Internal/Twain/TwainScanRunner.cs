@@ -219,6 +219,7 @@ internal class TwainScanRunner
     private void DataTransferred(object? sender, DataTransferredEventArgs e)
     {
         _logger.LogDebug("NAPS2.TW - DataTransferred");
+        FopaProbe.ReadExtImageInfo(e);
         try
         {
             if (_options.TwainOptions.TransferMode == TwainTransferMode.Memory && e.MemoryData == null)
@@ -331,6 +332,32 @@ internal class TwainScanRunner
         if (!_options.TwainOptions.ShowProgress)
         {
             source.Capabilities.CapIndicators.SetValue(BoolType.False);
+        }
+
+        // FOPA: a driver sajat profilja bekapcsolva tarthatja az ures oldal eldobast
+        // (fi-7700-on mérve: ICAP_AUTODISCARDBLANKPAGES = -1 = Auto), amitol a duplex
+        // koteg fele annyi kepet ad, es a lapok parositasa elcsuszik.
+        if (source.Capabilities.ICapAutoDiscardBlankPages.IsSupported)
+        {
+            var before = source.Capabilities.ICapAutoDiscardBlankPages.GetCurrent();
+            var rc = source.Capabilities.ICapAutoDiscardBlankPages.SetValue(BlankPage.Disable);
+            FopaProbe.Log($"ICapAutoDiscardBlankPages: elotte={before} set_rc={rc} " +
+                          $"utana={source.Capabilities.ICapAutoDiscardBlankPages.GetCurrent()}");
+        }
+        else
+        {
+            FopaProbe.Log("ICapAutoDiscardBlankPages: nem tamogatott");
+        }
+
+        // FOPA: az oldalankenti metaadathoz (TWEI_PAPERCOUNT, TWEI_PAGESIDE) ez kell
+        if (source.Capabilities.ICapExtImageInfo.IsSupported)
+        {
+            var rc = source.Capabilities.ICapExtImageInfo.SetValue(BoolType.True);
+            FopaProbe.Log($"ICapExtImageInfo bekapcsolva, rc={rc}");
+        }
+        else
+        {
+            FopaProbe.Log("ICapExtImageInfo: nem tamogatott");
         }
 
         // Paper Source

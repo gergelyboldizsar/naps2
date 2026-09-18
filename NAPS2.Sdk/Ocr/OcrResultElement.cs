@@ -12,4 +12,7 @@ public record OcrResultElement(
     (int x, int y, int w, int h) Bounds,
     int Baseline,
     int FontSize,
-    ImmutableList<OcrResultElement> Children);
+    ImmutableList<OcrResultElement> Children,
+    // FOPA: a felismeres megbizhatosaga 0-100 skalan (a hOCR x_wconf mezojebol).
+    // Sorok eseten a szavak atlaga. 0 = nincs adat (pl. olyan motortol, ami nem ad konfidenciat).
+    int Confidence = 0);

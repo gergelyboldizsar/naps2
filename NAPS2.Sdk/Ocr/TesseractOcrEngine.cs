@@ -228,7 +228,8 @@ public class TesseractOcrEngine : IOcrEngine
                             ? wordBounds.y + wordBounds.h
                             : CalculateBaseline(baselineParams, lineBounds, wordBounds),
                         GetFontSize(wordElement),
-                        ImmutableList<OcrResultElement>.Empty);
+                        ImmutableList<OcrResultElement>.Empty,
+                        GetConfidence(wordElement));
                 }).ToImmutableList();
             if (lineWords.Count == 0) continue;
             words.AddRange(lineWords);
@@ -237,7 +238,9 @@ public class TesseractOcrEngine : IOcrEngine
                 Text = string.Join(" ", lineWords.Select(x => x.Text)),
                 Bounds = lineBounds,
                 Baseline = CalculateBaseline(baselineParams, lineBounds, lineBounds),
-                Children = lineWords
+                Children = lineWords,
+                // FOPA: a sor konfidenciaja a szavaiének átlaga
+                Confidence = (int) Math.Round(lineWords.Average(x => x.Confidence))
             });
         }
         return new OcrResult(pageBounds, words.ToImmutableList(), lines.ToImmutableList());
@@ -284,6 +287,18 @@ public class TesseractOcrEngine : IOcrEngine
             bounds = (x1, y1, x2 - x1, y2 - y1);
         }
         return bounds;
+    }
+
+    // FOPA: a hOCR szavankent megadja a felismeres megbizhatosagat (x_wconf, 0-100).
+    // A NAPS2 eddig eldobta; az FR-3.4/FR-3.6 konfidencia-kuszobei erre epulnek.
+    private int GetConfidence(XElement? element)
+    {
+        if (ParseData(element, "x_wconf", 1, out string[] parts) &&
+            int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int conf))
+        {
+            return Math.Clamp(conf, 0, 100);
+        }
+        return 0;
     }
 
     private int GetFontSize(XElement? element)
