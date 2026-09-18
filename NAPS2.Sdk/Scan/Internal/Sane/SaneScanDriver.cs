@@ -259,7 +259,7 @@ internal class SaneScanDriver : IScanDriver
     private static string GetBackend(string saneDeviceName) => saneDeviceName.Split(':')[0];
 
     public Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         return Task.Run(() =>
         {
@@ -281,14 +281,14 @@ internal class SaneScanDriver : IScanDriver
                     {
                         var image = ScanPage(device, scanEvents, optionData) ??
                                     throw new DeviceException("SANE expected image");
-                        callback(image);
+                        callback(image, null);
                     }
                     else
                     {
                         while (ScanPage(device, scanEvents, optionData) is { } image)
                         {
                             hasAtLeastOneImage = true;
-                            callback(image);
+                            callback(image, null);
                         }
                     }
                 }

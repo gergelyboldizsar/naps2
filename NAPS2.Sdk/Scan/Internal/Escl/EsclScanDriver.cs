@@ -160,7 +160,7 @@ internal class EsclScanDriver : IScanDriver
     }
 
     public async Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         if (cancelToken.IsCancellationRequested) return;
 
@@ -201,7 +201,7 @@ internal class EsclScanDriver : IScanDriver
                     if (doc == null) break;
                     foreach (var image in GetImagesFromRawDocument(options, doc))
                     {
-                        callback(image);
+                        callback(image, null);
                     }
                 }
             }

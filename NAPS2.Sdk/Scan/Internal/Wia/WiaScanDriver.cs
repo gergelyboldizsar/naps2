@@ -113,7 +113,7 @@ internal class WiaScanDriver : IScanDriver
     }
 
     public Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         return Task.Run(async () =>
         {
@@ -149,10 +149,10 @@ internal class WiaScanDriver : IScanDriver
         private readonly ScanOptions _options;
         private readonly CancellationToken _cancelToken;
         private readonly IScanEvents _scanEvents;
-        private readonly Action<IMemoryImage> _callback;
+        private readonly Action<IMemoryImage, ScanPageMetadata?> _callback;
 
         public WiaScanContext(ScanningContext scanningContext, ScanOptions options, CancellationToken cancelToken,
-            IScanEvents scanEvents, Action<IMemoryImage> callback)
+            IScanEvents scanEvents, Action<IMemoryImage, ScanPageMetadata?> callback)
         {
             _scanningContext = scanningContext;
             _logger = scanningContext.Logger;
@@ -209,7 +209,7 @@ internal class WiaScanDriver : IScanDriver
                     {
                         using (image)
                         {
-                            _callback(image);
+                            _callback(image, null);
                         }
                     }
                 }
@@ -270,7 +270,7 @@ internal class WiaScanDriver : IScanDriver
                     }
                     using (image)
                     {
-                        _callback(image);
+                        _callback(image, null);
                     }
                     _scanEvents.PageStart();
                 }

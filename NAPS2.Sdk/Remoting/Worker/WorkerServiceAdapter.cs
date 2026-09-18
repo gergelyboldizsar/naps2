@@ -202,6 +202,10 @@ internal class WorkerServiceAdapter
                 {
                     twainEvents.PageStart(resp.PageStart);
                 }
+                if (resp.PageMetadata != null)
+                {
+                    twainEvents.PageMetadata(resp.PageMetadata);
+                }
                 if (resp.NativeImage != null)
                 {
                     twainEvents.NativeImageTransferred(resp.NativeImage);

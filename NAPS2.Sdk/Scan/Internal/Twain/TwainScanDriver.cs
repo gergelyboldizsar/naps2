@@ -41,7 +41,7 @@ internal class TwainScanDriver : IScanDriver
     }
 
     public Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         CheckArch(options);
         return Task.Run(async () =>

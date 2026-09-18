@@ -22,7 +22,7 @@ internal class DeviceOperator : ICScannerDeviceDelegate
     private readonly DeviceReader _reader;
     private readonly ScanOptions _options;
     private readonly IScanEvents _scanEvents;
-    private readonly Action<IMemoryImage> _callback;
+    private readonly Action<IMemoryImage, ScanPageMetadata?> _callback;
     private readonly TaskCompletionSource _openSessionTcs = new();
     private readonly TaskCompletionSource _readyTcs = new();
     private TaskCompletionSource<ICScannerFunctionalUnit> _unitTcs = new();
@@ -34,7 +34,7 @@ internal class DeviceOperator : ICScannerDeviceDelegate
     private MemoryStream? _buffer;
 
     public DeviceOperator(ScanningContext scanningContext, ICScannerDevice device, DeviceReader reader,
-        ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents, Action<IMemoryImage> callback)
+        ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents, Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         _scanningContext = scanningContext;
         _logger = scanningContext.Logger;
@@ -135,7 +135,7 @@ internal class DeviceOperator : ICScannerDeviceDelegate
                 var image = await tcs.Task;
                 if (image != null)
                 {
-                    _callback(image);
+                    _callback(image, null);
                 }
             });
             Task.Run(() =>

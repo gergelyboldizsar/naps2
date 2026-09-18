@@ -289,14 +289,15 @@ public class TesseractOcrEngine : IOcrEngine
         return bounds;
     }
 
-    // FOPA: a hOCR szavankent megadja a felismeres megbizhatosagat (x_wconf, 0-100).
-    // A NAPS2 eddig eldobta; az FR-3.4/FR-3.6 konfidencia-kuszobei erre epulnek.
+    // FOPA: hOCR carries a per word recognition confidence (x_wconf, 0-100). NAPS2 used to drop
+    // it; the FR-3.4/FR-3.6 confidence thresholds are built on it.
     private int GetConfidence(XElement? element)
     {
         if (ParseData(element, "x_wconf", 1, out string[] parts) &&
             int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int conf))
         {
-            return Math.Clamp(conf, 0, 100);
+            // Not Math.Clamp: this file also builds for net462, where that overload is missing.
+            return Math.Min(100, Math.Max(0, conf));
         }
         return 0;
     }

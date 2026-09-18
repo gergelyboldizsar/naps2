@@ -391,6 +391,10 @@ internal class WorkerServiceImpl : WorkerService.WorkerServiceBase
                 canceled => sequencedWriter.Write(new TwainScanResponse
                 {
                     TransferCanceled = canceled
+                }),
+                pageMetadata => sequencedWriter.Write(new TwainScanResponse
+                {
+                    PageMetadata = pageMetadata
                 })
             );
             var options = request.OptionsXml.FromXml<ScanOptions>();

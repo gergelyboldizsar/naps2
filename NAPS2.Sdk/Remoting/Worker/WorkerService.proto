@@ -159,7 +159,17 @@ message TwainScanResponse {
 		TwainNativeImage nativeImage = 3;
 		TwainMemoryBuffer memoryBuffer = 4;
 		TwainTransferCanceled transferCanceled = 5;
+		TwainPageMetadata pageMetadata = 6;
 	}
+}
+
+// FOPA: per page metadata read from the driver's ExtImageInfo after the transfer.
+// Sent right before the image events so the receiving side can attach it to the image.
+message TwainPageMetadata {
+	// TWEI_PAPERCOUNT: the physical sheet number, 0 when the driver does not report it.
+	int32 sheetNumber = 1;
+	// TWEI_PAGESIDE: 0 unknown, 1 front, 2 back.
+	int32 pageSide = 2;
 }
 
 message TwainPageStart {

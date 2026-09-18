@@ -40,7 +40,7 @@ internal class AppleScanDriver : IScanDriver
     }
 
     public async Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         using var reader = new DeviceReader();
         // Note we don't want to dispose the device, as the ICDeviceBrowser manages its lifetime.

@@ -47,13 +47,16 @@ internal class RemoteScanController : IRemoteScanController
             progressThrottle.Reset();
         }, progressThrottle.OnlyIfChanged, scanEvents.DeviceUriChanged);
         int pageNumber = 0;
-        await driver.Scan(options, cancelToken, driverScanEvents, image =>
+        await driver.Scan(options, cancelToken, driverScanEvents, (image, pageMetadata) =>
         {
             var postProcessingContext = new PostProcessingContext
             {
                 // Note we still want to increment even if we don't send a page callback (i.e. when blank detection is
                 // on). The page number is only used to determine whether we're on the front or back of a duplex scan. 
-                PageNumber = ++pageNumber
+                PageNumber = ++pageNumber,
+                // FOPA: when the driver reports the paper itself, that beats counting images.
+                SheetNumber = pageMetadata?.SheetNumber ?? 0,
+                PageSide = pageMetadata?.PageSide ?? PageSide.Unknown
             };
             var scannedImage = _remotePostProcessor.PostProcess(image, options, postProcessingContext);
             if (scannedImage != null)

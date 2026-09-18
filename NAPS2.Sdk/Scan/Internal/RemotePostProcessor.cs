@@ -139,8 +139,17 @@ internal class RemotePostProcessor : IRemotePostProcessor
     {
         var data = processedImage.PostProcessingData with
         {
-            PageNumber = postProcessingContext.PageNumber
+            PageNumber = postProcessingContext.PageNumber,
+            // FOPA: the physical sheet number the driver reported, 0 when it reported none.
+            SheetNumber = postProcessingContext.SheetNumber
         };
+
+        // FOPA: a driver reported page side is authoritative in every paper source, because it
+        // describes the sheet, not our image counter.
+        if (postProcessingContext.PageSide != PageSide.Unknown)
+        {
+            data = data with { PageSide = postProcessingContext.PageSide };
+        }
 
         if ((!options.UseNativeUI && options.BrightnessContrastAfterScan) ||
             options.Driver is not (Driver.Wia or Driver.Twain))
@@ -151,10 +160,16 @@ internal class RemotePostProcessor : IRemotePostProcessor
 
         if (options.PaperSource == PaperSource.Duplex)
         {
-            data = data with
+            if (postProcessingContext.PageSide == PageSide.Unknown)
             {
-                PageSide = postProcessingContext.PageNumber % 2 == 0 ? PageSide.Back : PageSide.Front
-            };
+                // Fallback for drivers that report nothing: image parity. This is what drifts
+                // when a page is silently dropped, which is exactly why FR-1.15 wants the driver
+                // value instead.
+                data = data with
+                {
+                    PageSide = postProcessingContext.PageNumber % 2 == 0 ? PageSide.Back : PageSide.Front
+                };
+            }
             if (options.FlipDuplexedPages && data.PageSide == PageSide.Back)
             {
                 processedImage = processedImage.WithTransform(new RotationTransform(180), true);

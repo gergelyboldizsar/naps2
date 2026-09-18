@@ -13,7 +13,8 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
 {
     private readonly ScanningContext _scanningContext;
     private readonly ILogger _logger;
-    private readonly Action<IMemoryImage> _callback;
+    private readonly Action<IMemoryImage, ScanPageMetadata?> _callback;
+    private ScanPageMetadata? _currentMetadata;
     private TwainImageData? _currentImageData;
     private IMemoryImage? _currentImage;
     private int _transferredWidth;
@@ -23,12 +24,28 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
     private readonly TwainProgressEstimator _progressEstimator;
 
     public TwainImageProcessor(ScanningContext scanningContext, ScanOptions options, IScanEvents scanEvents,
-        Action<IMemoryImage> callback)
+        Action<IMemoryImage, ScanPageMetadata?> callback)
     {
         _scanningContext = scanningContext;
         _logger = scanningContext.Logger;
         _callback = callback;
         _progressEstimator = new TwainProgressEstimator(options, scanEvents);
+    }
+
+    /// <summary>
+    /// FOPA: arrives after the transfer but before the image events of the same page, so it
+    /// applies to the image that is emitted next.
+    /// </summary>
+    public void PageMetadata(TwainPageMetadata pageMetadata)
+    {
+        _currentMetadata = new ScanPageMetadata(
+            pageMetadata.SheetNumber,
+            pageMetadata.PageSide switch
+            {
+                1 => PageSide.Front,
+                2 => PageSide.Back,
+                _ => PageSide.Unknown
+            });
     }
 
     public void PageStart(TwainPageStart pageStart)
@@ -47,7 +64,7 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
     public void NativeImageTransferred(TwainNativeImage nativeImage)
     {
         using var image = _scanningContext.ImageContext.Load(new MemoryStream(nativeImage.Buffer.ToByteArray()));
-        _callback(image);
+        _callback(image, TakeMetadata());
         _progressEstimator.MarkCompletion();
     }
 
@@ -129,9 +146,17 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
                 ReallocImage(_transferredWidth, _transferredHeight);
             }
             _progressEstimator.MarkCompletion();
-            _callback(_currentImage);
+            _callback(_currentImage, TakeMetadata());
             _currentImage = null;
         }
+    }
+
+    /// <summary>Metadata belongs to exactly one image; consuming it avoids reusing stale values.</summary>
+    private ScanPageMetadata? TakeMetadata()
+    {
+        var metadata = _currentMetadata;
+        _currentMetadata = null;
+        return metadata;
     }
 
     public void Dispose()

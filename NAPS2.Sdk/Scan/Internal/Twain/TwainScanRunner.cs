@@ -216,10 +216,55 @@ internal class TwainScanRunner
         }
     }
 
+    /// <summary>
+    /// FOPA: reads the physical sheet number and the real page side from the driver
+    /// (TWEI_PAPERCOUNT, TWEI_PAGESIDE). Both are optional: a driver that does not report them
+    /// yields zeros, and the caller falls back to counting images.
+    /// </summary>
+    private TwainPageMetadata ReadPageMetadata(DataTransferredEventArgs e)
+    {
+        var metadata = new TwainPageMetadata();
+        try
+        {
+            foreach (var info in e.GetExtImageInfo(ExtendedImageInfo.PaperCount, ExtendedImageInfo.PageSide))
+            {
+                if (info.ReturnCode != ReturnCode.Success)
+                {
+                    continue;
+                }
+                var value = info.ReadValues().FirstOrDefault();
+                if (value == null)
+                {
+                    continue;
+                }
+                if (info.InfoID == ExtendedImageInfo.PaperCount)
+                {
+                    metadata.SheetNumber = Convert.ToInt32(value);
+                }
+                else if (info.InfoID == ExtendedImageInfo.PageSide)
+                {
+                    // TWPS_FRONT = 0, TWPS_BACK = 1 on the wire; we carry 1/2 and keep 0 for unknown.
+                    metadata.PageSide = Convert.ToInt32(value) == 0 ? 1 : 2;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Metadata is an optimization, never a reason to fail a scan.
+            _logger.LogDebug(ex, "NAPS2.TW - FOPA could not read ExtImageInfo");
+        }
+        _logger.LogDebug(
+            "NAPS2.TW - FOPA page metadata: sheet={sheet} side={side}",
+            metadata.SheetNumber, metadata.PageSide);
+        return metadata;
+    }
+
     private void DataTransferred(object? sender, DataTransferredEventArgs e)
     {
         _logger.LogDebug("NAPS2.TW - DataTransferred");
-        FopaProbe.ReadExtImageInfo(e);
+        // FOPA: the metadata has to go out before the image events, so the receiving side can
+        // attach it to the image it is about to emit.
+        _twainEvents.PageMetadata(ReadPageMetadata(e));
         try
         {
             if (_options.TwainOptions.TransferMode == TwainTransferMode.Memory && e.MemoryData == null)
@@ -341,23 +386,24 @@ internal class TwainScanRunner
         {
             var before = source.Capabilities.ICapAutoDiscardBlankPages.GetCurrent();
             var rc = source.Capabilities.ICapAutoDiscardBlankPages.SetValue(BlankPage.Disable);
-            FopaProbe.Log($"ICapAutoDiscardBlankPages: elotte={before} set_rc={rc} " +
-                          $"utana={source.Capabilities.ICapAutoDiscardBlankPages.GetCurrent()}");
+            _logger.LogDebug(
+                "NAPS2.TW - FOPA ICapAutoDiscardBlankPages: before={before} rc={rc} after={after}",
+                before, rc, source.Capabilities.ICapAutoDiscardBlankPages.GetCurrent());
         }
         else
         {
-            FopaProbe.Log("ICapAutoDiscardBlankPages: nem tamogatott");
+            _logger.LogDebug("NAPS2.TW - FOPA ICapAutoDiscardBlankPages not supported");
         }
 
         // FOPA: az oldalankenti metaadathoz (TWEI_PAPERCOUNT, TWEI_PAGESIDE) ez kell
         if (source.Capabilities.ICapExtImageInfo.IsSupported)
         {
             var rc = source.Capabilities.ICapExtImageInfo.SetValue(BoolType.True);
-            FopaProbe.Log($"ICapExtImageInfo bekapcsolva, rc={rc}");
+            _logger.LogDebug("NAPS2.TW - FOPA ICapExtImageInfo enabled, rc={rc}", rc);
         }
         else
         {
-            FopaProbe.Log("ICapExtImageInfo: nem tamogatott");
+            _logger.LogDebug("NAPS2.TW - FOPA ICapExtImageInfo not supported");
         }
 
         // Paper Source
