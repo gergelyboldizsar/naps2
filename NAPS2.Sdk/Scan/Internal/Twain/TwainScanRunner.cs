@@ -224,6 +224,7 @@ internal class TwainScanRunner
     private TwainPageMetadata ReadPageMetadata(DataTransferredEventArgs e)
     {
         var metadata = new TwainPageMetadata();
+        int? rawPageSide = null;
         try
         {
             foreach (var info in e.GetExtImageInfo(ExtendedImageInfo.PaperCount, ExtendedImageInfo.PageSide))
@@ -243,8 +244,18 @@ internal class TwainScanRunner
                 }
                 else if (info.InfoID == ExtendedImageInfo.PageSide)
                 {
-                    // TWPS_FRONT = 0, TWPS_BACK = 1 on the wire; we carry 1/2 and keep 0 for unknown.
-                    metadata.PageSide = Convert.ToInt32(value) == 0 ? 1 : 2;
+                    // The TWAIN spec says TWPS_FRONT = 0, TWPS_BACK = 1, but PaperStream IP on the
+                    // fi-7700 reports 1 for the front and 2 for the back (measured 2026-09-17 and
+                    // again 2026-09-18). We carry 1/2 and keep 0 for "the driver said nothing",
+                    // and we log the raw value so a different driver stays diagnosable.
+                    var raw = Convert.ToInt32(value);
+                    rawPageSide = raw;
+                    metadata.PageSide = raw switch
+                    {
+                        1 => 1,
+                        2 => 2,
+                        _ => 0
+                    };
                 }
             }
         }
@@ -254,8 +265,8 @@ internal class TwainScanRunner
             _logger.LogDebug(ex, "NAPS2.TW - FOPA could not read ExtImageInfo");
         }
         _logger.LogDebug(
-            "NAPS2.TW - FOPA page metadata: sheet={sheet} side={side}",
-            metadata.SheetNumber, metadata.PageSide);
+            "NAPS2.TW - FOPA page metadata: sheet={sheet} side={side} (raw side={raw})",
+            metadata.SheetNumber, metadata.PageSide, rawPageSide);
         return metadata;
     }
 
