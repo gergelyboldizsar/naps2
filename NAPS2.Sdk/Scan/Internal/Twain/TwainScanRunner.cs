@@ -88,6 +88,18 @@ internal class TwainScanRunner
             _logger.LogDebug("NAPS2.TW - Configuring source");
             ConfigureSource(_source);
 
+            // FOPA: an empty feeder is refused here, before MSG_ENABLEDS. PaperStream IP on the
+            // fi-7700 otherwise shows its own "no document" dialog, and a cancel there ends the
+            // session as if it had succeeded with no pages (measured 2026-09-23). CAP_FEEDERLOADED
+            // is reliable on this driver: it drops from 1 to 0 as the tray empties.
+            if (_options.PaperSource is PaperSource.Feeder or PaperSource.Duplex &&
+                _source.Capabilities.CapFeederLoaded.IsSupported &&
+                _source.Capabilities.CapFeederLoaded.GetCurrent() == BoolType.False)
+            {
+                _logger.LogDebug("NAPS2.TW - FOPA feeder empty, not enabling the source");
+                throw new DeviceFeederEmptyException();
+            }
+
             _logger.LogDebug("NAPS2.TW - Enabling source");
             var ui = _options.UseNativeUI ? SourceEnableMode.ShowUI : SourceEnableMode.NoUI;
             var enableHandle = _handleManager.GetEnableHandle(_options.DialogParent, useNativeUi);
