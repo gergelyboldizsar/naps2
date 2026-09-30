@@ -160,6 +160,7 @@ message TwainScanResponse {
 		TwainMemoryBuffer memoryBuffer = 4;
 		TwainTransferCanceled transferCanceled = 5;
 		TwainPageMetadata pageMetadata = 6;
+		TwainDriverSettings driverSettings = 7;
 	}
 }
 
@@ -170,6 +171,15 @@ message TwainPageMetadata {
 	int32 sheetNumber = 1;
 	// TWEI_PAGESIDE: 0 unknown, 1 front, 2 back.
 	int32 pageSide = 2;
+	// TWEI_PATCHCODE: "1".."4", "6", "T", empty when none was read.
+	string patchCode = 3;
+	// TWEI_PRINTERTEXT: what the imprinter printed on the sheet, empty when nothing.
+	string printerText = 4;
+}
+
+// FOPA: the driver's own settings (DAT_CUSTOMDSDATA), read after its settings dialog closed.
+message TwainDriverSettings {
+	bytes data = 1;
 }
 
 message TwainPageStart {

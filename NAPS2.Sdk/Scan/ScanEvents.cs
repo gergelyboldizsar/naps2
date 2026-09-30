@@ -9,13 +9,20 @@ internal class ScanEvents : IScanEvents
     private readonly Action _pageStartCallback;
     private readonly Action<double> _pageProgressCallback;
     private readonly Action<string?, string?> _deviceUriChangedCallback;
+    private readonly Action<byte[]>? _driverSettingsCallback;
 
     public ScanEvents(Action pageStartCallback, Action<double> pageProgressCallback,
-        Action<string?, string?> deviceUriChangedCallback)
+        Action<string?, string?> deviceUriChangedCallback, Action<byte[]>? driverSettingsCallback = null)
     {
         _pageStartCallback = pageStartCallback;
         _pageProgressCallback = pageProgressCallback;
         _deviceUriChangedCallback = deviceUriChangedCallback;
+        _driverSettingsCallback = driverSettingsCallback;
+    }
+
+    public void DriverSettingsCaptured(byte[] data)
+    {
+        _driverSettingsCallback?.Invoke(data);
     }
 
     public void PageStart()

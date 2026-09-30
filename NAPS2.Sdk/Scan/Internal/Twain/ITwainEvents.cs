@@ -12,6 +12,9 @@ internal interface ITwainEvents
     /// </summary>
     void PageMetadata(TwainPageMetadata pageMetadata);
 
+    /// <summary>FOPA: the driver's own settings after its settings dialog closed (CaptureDriverSettings).</summary>
+    void DriverSettings(TwainDriverSettings driverSettings);
+
     void NativeImageTransferred(TwainNativeImage nativeImage);
 
     void MemoryBufferTransferred(TwainMemoryBuffer memoryBuffer);

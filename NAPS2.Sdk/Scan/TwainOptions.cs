@@ -29,6 +29,45 @@ public class TwainOptions
     /// By default they are excluded, since NAPS2 supports using WIA devices directly.
     /// </summary>
     public bool IncludeWiaDevices { get; set; }
+
+    /// <summary>
+    /// FOPA: stop the feed when the driver detects a double feed (CAP_DOUBLEFEEDDETECTION ultrasonic,
+    /// CAP_DOUBLEFEEDDETECTIONRESPONSE = STOP). False leaves the driver's own setting. See
+    /// TwainCaps.SupportsDoubleFeedStop.
+    /// </summary>
+    public bool StopOnDoubleFeed { get; set; }
+
+    /// <summary>
+    /// FOPA: driver side patch code recognition (ICAP_PATCHCODEDETECTIONENABLED). The code read on a
+    /// page comes in PostProcessingData.PatchCode. See TwainCaps.SupportsPatchCodes.
+    /// </summary>
+    public bool DetectPatchCodes { get; set; }
+
+    /// <summary>
+    /// FOPA: text for the imprinter to print on every sheet (CAP_PRINTER*); null leaves the imprinter
+    /// as the driver has it. What was printed comes in PostProcessingData.PrinterText. See
+    /// TwainCaps.SupportsImprinter.
+    /// </summary>
+    public string? ImprinterText { get; set; }
+
+    /// <summary>
+    /// FOPA: the driver's own settings (DAT_CUSTOMDSDATA), as captured with CaptureDriverSettings.
+    /// Applied before every other setting, so the options above still win. The blob belongs to one
+    /// driver and model; applied to another it may be refused or misread.
+    /// </summary>
+    public byte[]? DriverSettings { get; set; }
+
+    /// <summary>
+    /// FOPA: instead of scanning, show the driver's settings dialog only (MSG_ENABLEDSUIONLY) and
+    /// report what was set there through ScanController.DriverSettingsCaptured. No image is produced.
+    /// Needs the TWAIN worker or an in-process TWAIN session. See TwainCaps.SupportsDriverSettings.
+    /// </summary>
+    public bool CaptureDriverSettings { get; set; }
+
+    /// <summary>
+    /// FOPA: the JPEG quality (1-100) the driver compresses with in File transfer mode.
+    /// </summary>
+    public int FileJpegQuality { get; set; } = 85;
 }
 
 /// <summary>
@@ -72,5 +111,12 @@ public enum TwainTransferMode
     /// Transfers the entire image at once. This may fail with very high-resolution images if they exceed the memory
     /// limits of the 32-bit worker.
     /// </summary>
-    Native
+    Native,
+
+    /// <summary>
+    /// FOPA: the driver writes each image to a file, compressed on its side: JPEG in colour and grayscale
+    /// (TwainOptions.FileJpegQuality), Group 4 TIFF in black and white. Less data through the worker, and no
+    /// uncompressed bitmap in its memory.
+    /// </summary>
+    File
 }

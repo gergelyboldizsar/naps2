@@ -176,7 +176,8 @@ public class ScanController
             async Task DoScan(ScanOptions actualOptions)
             {
                 await bridge.Scan(actualOptions, cancelToken,
-                    new ScanEvents(PageStartCallback, PageProgressCallback, ConnectionUriChangedCallback),
+                    new ScanEvents(PageStartCallback, PageProgressCallback, ConnectionUriChangedCallback,
+                        data => DriverSettingsCaptured?.Invoke(this, new DriverSettingsCapturedEventArgs(data))),
                     (image, postProcessingContext) =>
                     {
                         image = _localPostProcessor.PostProcess(image, actualOptions, postProcessingContext);
@@ -281,4 +282,16 @@ public class ScanController
     /// can be used to update the ScanDevice object for future scans.
     /// </summary>
     public event EventHandler<DeviceUriChangedEventArgs>? DeviceUriChanged;
+
+    /// <summary>
+    /// FOPA: the driver's own settings, captured with TwainOptions.CaptureDriverSettings. Pass them back in
+    /// TwainOptions.DriverSettings to scan with them.
+    /// </summary>
+    public event EventHandler<DriverSettingsCapturedEventArgs>? DriverSettingsCaptured;
+}
+
+/// <summary>FOPA: the DAT_CUSTOMDSDATA blob of the driver.</summary>
+public class DriverSettingsCapturedEventArgs(byte[] data) : EventArgs
+{
+    public byte[] Data { get; } = data;
 }

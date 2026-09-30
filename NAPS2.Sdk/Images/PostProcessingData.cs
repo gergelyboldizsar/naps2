@@ -13,7 +13,9 @@ public record PostProcessingData(
     int SheetNumber,
     Barcode Barcode,
     CancellationTokenSource? OcrCts,
-    string? OriginalFilePath)
+    string? OriginalFilePath,
+    string? PatchCode = null,
+    string? PrinterText = null)
 {
     public PostProcessingData() : this(null, null, 0, PageSide.Unknown, 0, Barcode.NoDetection, null, null)
     {

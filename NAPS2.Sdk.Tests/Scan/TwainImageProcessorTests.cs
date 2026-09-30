@@ -21,18 +21,23 @@ public class TwainImageProcessorTests : ContextualTests
     private static readonly (int, int, int) LIGHT_GRAY = (0xD3, 0xD3, 0xD3);
 
     private readonly IScanEvents _scanEvents;
-    private readonly Action<IMemoryImage> _callback;
+    private readonly Action<IMemoryImage, ScanPageMetadata?> _callback;
     private readonly TwainImageProcessor _processor;
     private readonly List<IMemoryImage> _images;
+    private readonly List<ScanPageMetadata?> _metadata = [];
 
     public TwainImageProcessorTests()
     {
         _scanEvents = Substitute.For<IScanEvents>();
-        _callback = Substitute.For<Action<IMemoryImage>>();
+        _callback = Substitute.For<Action<IMemoryImage, ScanPageMetadata?>>();
 
         _images = [];
-        _callback.When(x => x(Arg.Any<IMemoryImage>()))
-            .Do(x => _images.Add((IMemoryImage) x[0]));
+        _callback.When(x => x(Arg.Any<IMemoryImage>(), Arg.Any<ScanPageMetadata?>()))
+            .Do(x =>
+            {
+                _images.Add((IMemoryImage) x[0]);
+                _metadata.Add((ScanPageMetadata?) x[1]);
+            });
 
         _processor = new TwainImageProcessor(ScanningContext, new ScanOptions(), _scanEvents, _callback);
     }
@@ -413,5 +418,35 @@ public class TwainImageProcessorTests : ContextualTests
             BitsPerSample = { 8, 8, 8 },
             SamplesPerPixel = 3
         };
+    }
+
+    [Fact]
+    public void FopaPageMetadataGoesWithTheNextImageOnly()
+    {
+        _processor.PageMetadata(new TwainPageMetadata { SheetNumber = 3, PageSide = 2, PatchCode = "T", PrinterText = "FOPA 0007" });
+        _processor.PageStart(new TwainPageStart { ImageData = CreateColorImageData(1, 1) });
+        _processor.MemoryBufferTransferred(new TwainMemoryBuffer
+        {
+            Buffer = ByteString.CopyFrom(0xFF, 0x00, 0x00, 0x00),
+            Columns = 1, Rows = 1, BytesPerRow = 4, XOffset = 0, YOffset = 0
+        });
+        _processor.PageStart(new TwainPageStart { ImageData = CreateColorImageData(1, 1) });
+        _processor.MemoryBufferTransferred(new TwainMemoryBuffer
+        {
+            Buffer = ByteString.CopyFrom(0xFF, 0x00, 0x00, 0x00),
+            Columns = 1, Rows = 1, BytesPerRow = 4, XOffset = 0, YOffset = 0
+        });
+        _processor.Flush();
+
+        Assert.Equal(new ScanPageMetadata(3, PageSide.Back, "T", "FOPA 0007"), _metadata[0]);
+        Assert.Null(_metadata[1]);
+    }
+
+    [Fact]
+    public void FopaDriverSettingsReachTheScanEvents()
+    {
+        _processor.DriverSettings(new TwainDriverSettings { Data = ByteString.CopyFrom(1, 2, 3) });
+
+        _scanEvents.Received().DriverSettingsCaptured(Arg.Is<byte[]>(b => b.SequenceEqual(new byte[] { 1, 2, 3 })));
     }
 }

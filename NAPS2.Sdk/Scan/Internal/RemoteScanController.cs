@@ -56,7 +56,9 @@ internal class RemoteScanController : IRemoteScanController
                 PageNumber = ++pageNumber,
                 // FOPA: when the driver reports the paper itself, that beats counting images.
                 SheetNumber = pageMetadata?.SheetNumber ?? 0,
-                PageSide = pageMetadata?.PageSide ?? PageSide.Unknown
+                PageSide = pageMetadata?.PageSide ?? PageSide.Unknown,
+                PatchCode = pageMetadata?.PatchCode,
+                PrinterText = pageMetadata?.PrinterText
             };
             var scannedImage = _remotePostProcessor.PostProcess(image, options, postProcessingContext);
             if (scannedImage != null)

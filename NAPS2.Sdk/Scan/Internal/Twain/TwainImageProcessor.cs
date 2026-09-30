@@ -14,6 +14,7 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
     private readonly ScanningContext _scanningContext;
     private readonly ILogger _logger;
     private readonly Action<IMemoryImage, ScanPageMetadata?> _callback;
+    private readonly IScanEvents _scanEvents;
     private ScanPageMetadata? _currentMetadata;
     private TwainImageData? _currentImageData;
     private IMemoryImage? _currentImage;
@@ -28,6 +29,7 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
     {
         _scanningContext = scanningContext;
         _logger = scanningContext.Logger;
+        _scanEvents = scanEvents;
         _callback = callback;
         _progressEstimator = new TwainProgressEstimator(options, scanEvents);
     }
@@ -45,7 +47,15 @@ internal class TwainImageProcessor : ITwainEvents, IDisposable
                 1 => PageSide.Front,
                 2 => PageSide.Back,
                 _ => PageSide.Unknown
-            });
+            },
+            string.IsNullOrEmpty(pageMetadata.PatchCode) ? null : pageMetadata.PatchCode,
+            string.IsNullOrEmpty(pageMetadata.PrinterText) ? null : pageMetadata.PrinterText);
+    }
+
+    /// <summary>FOPA: what the driver's settings dialog left behind (CaptureDriverSettings).</summary>
+    public void DriverSettings(TwainDriverSettings driverSettings)
+    {
+        _scanEvents.DriverSettingsCaptured(driverSettings.Data.ToByteArray());
     }
 
     public void PageStart(TwainPageStart pageStart)

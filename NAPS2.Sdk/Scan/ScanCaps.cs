@@ -30,4 +30,9 @@ public class ScanCaps
     /// Capabilities specific to the Duplex paper source.
     /// </summary>
     public PerSourceCaps? DuplexCaps { get; init; }
+
+    /// <summary>
+    /// FOPA: TWAIN specific capabilities; null for the other drivers.
+    /// </summary>
+    public TwainCaps? TwainCaps { get; init; }
 }

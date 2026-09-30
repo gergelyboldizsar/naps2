@@ -1,4 +1,5 @@
 #if !MAC
+using System.Runtime.InteropServices;
 using System.Threading;
 using Google.Protobuf;
 using Microsoft.Extensions.Logging;
@@ -26,6 +27,10 @@ internal class TwainScanRunner
     private readonly TaskCompletionSource<bool> _tcs;
     private readonly TaskCompletionSource<bool> _sourceDisabledTcs;
     private DataSource? _source;
+
+    // FOPA: File transfer mode: the format the driver writes, and a new file name for every image.
+    private FileFormat _fileFormat;
+    private int _fileIndex;
 
     public TwainScanRunner(ILogger logger, TWIdentity twainAppId, TwainDsm dsm, ScanOptions options,
         CancellationToken cancelToken, ITwainEvents twainEvents)
@@ -61,7 +66,8 @@ internal class TwainScanRunner
         try
         {
             _logger.LogDebug("NAPS2.TW - Opening session");
-            bool useNativeUi = _options.UseNativeUI || _options.TwainOptions.ShowProgress;
+            bool capture = _options.TwainOptions.CaptureDriverSettings;
+            bool useNativeUi = _options.UseNativeUI || _options.TwainOptions.ShowProgress || capture;
             var rc = _session.Open(_handleManager.CreateMessageLoopHook(_options.DialogParent, useNativeUi));
             if (rc != ReturnCode.Success)
             {
@@ -92,7 +98,7 @@ internal class TwainScanRunner
             // fi-7700 otherwise shows its own "no document" dialog, and a cancel there ends the
             // session as if it had succeeded with no pages (measured 2026-09-23). CAP_FEEDERLOADED
             // is reliable on this driver: it drops from 1 to 0 as the tray empties.
-            if (_options.PaperSource is PaperSource.Feeder or PaperSource.Duplex &&
+            if (!capture && _options.PaperSource is PaperSource.Feeder or PaperSource.Duplex &&
                 _source.Capabilities.CapFeederLoaded.IsSupported &&
                 _source.Capabilities.CapFeederLoaded.GetCurrent() == BoolType.False)
             {
@@ -101,7 +107,9 @@ internal class TwainScanRunner
             }
 
             _logger.LogDebug("NAPS2.TW - Enabling source");
-            var ui = _options.UseNativeUI ? SourceEnableMode.ShowUI : SourceEnableMode.NoUI;
+            // FOPA: CaptureDriverSettings shows the driver's settings dialog only, without a scan.
+            var ui = capture ? SourceEnableMode.ShowUIOnly
+                : _options.UseNativeUI ? SourceEnableMode.ShowUI : SourceEnableMode.NoUI;
             var enableHandle = _handleManager.GetEnableHandle(_options.DialogParent, useNativeUi);
             // Note that according to the twain spec, on Windows it is recommended to set the modal parameter to false
             rc = _source.Enable(ui, false, enableHandle);
@@ -111,7 +119,15 @@ internal class TwainScanRunner
             }
 
             _cancelToken.Register(() => _handleManager.Invoker.Invoke(FinishWithCancellation));
-            _sourceDisabledTcs.Task.ContinueWith(_ => _handleManager.Invoker.Invoke(FinishWithCompletion))
+            _sourceDisabledTcs.Task.ContinueWith(_ => _handleManager.Invoker.Invoke(() =>
+                {
+                    // FOPA: the dialog closed with the source still open, so its settings can be read now.
+                    if (capture)
+                    {
+                        ReportDriverSettings(_source);
+                    }
+                    FinishWithCompletion();
+                }))
                 .AssertNoAwait();
         }
         catch (Exception ex)
@@ -219,6 +235,9 @@ internal class TwainScanRunner
                 return new AlreadyHandledDriverException();
             case ConditionCode.PaperJam:
                 return new DevicePaperJamException();
+            case ConditionCode.PaperDoubleFeed:
+                // FOPA: otherwise a generic "TWAIN error", and the caller cannot tell it apart.
+                return new DeviceDoubleFeedException();
             case ConditionCode.CheckDeviceOnline when _session.State <= 3:
                 return new DeviceOfflineException();
             case ConditionCode.CheckDeviceOnline when _session.State >= 4:
@@ -239,7 +258,11 @@ internal class TwainScanRunner
         int? rawPageSide = null;
         try
         {
-            foreach (var info in e.GetExtImageInfo(ExtendedImageInfo.PaperCount, ExtendedImageInfo.PageSide))
+            // Only the infos asked for: some drivers fail the whole call on one they do not know.
+            var ids = new List<ExtendedImageInfo> { ExtendedImageInfo.PaperCount, ExtendedImageInfo.PageSide };
+            if (_options.TwainOptions.DetectPatchCodes) ids.Add(ExtendedImageInfo.PatchCode);
+            if (_options.TwainOptions.ImprinterText != null) ids.Add(ExtendedImageInfo.PrinterText);
+            foreach (var info in e.GetExtImageInfo(ids.ToArray()))
             {
                 if (info.ReturnCode != ReturnCode.Success)
                 {
@@ -253,6 +276,24 @@ internal class TwainScanRunner
                 if (info.InfoID == ExtendedImageInfo.PaperCount)
                 {
                     metadata.SheetNumber = Convert.ToInt32(value);
+                }
+                else if (info.InfoID == ExtendedImageInfo.PatchCode)
+                {
+                    // TWPCH_PATCH1..4 = 0..3, TWPCH_PATCH6 = 4, TWPCH_PATCHT = 5
+                    metadata.PatchCode = Convert.ToInt32(value) switch
+                    {
+                        0 => "1",
+                        1 => "2",
+                        2 => "3",
+                        3 => "4",
+                        4 => "6",
+                        5 => "T",
+                        _ => ""
+                    };
+                }
+                else if (info.InfoID == ExtendedImageInfo.PrinterText)
+                {
+                    metadata.PrinterText = Convert.ToString(value) ?? "";
                 }
                 else if (info.InfoID == ExtendedImageInfo.PageSide)
                 {
@@ -277,8 +318,8 @@ internal class TwainScanRunner
             _logger.LogDebug(ex, "NAPS2.TW - FOPA could not read ExtImageInfo");
         }
         _logger.LogDebug(
-            "NAPS2.TW - FOPA page metadata: sheet={sheet} side={side} (raw side={raw})",
-            metadata.SheetNumber, metadata.PageSide, rawPageSide);
+            "NAPS2.TW - FOPA page metadata: sheet={sheet} side={side} (raw side={raw}) patch={patch} printed={printed}",
+            metadata.SheetNumber, metadata.PageSide, rawPageSide, metadata.PatchCode, metadata.PrinterText);
         return metadata;
     }
 
@@ -294,7 +335,27 @@ internal class TwainScanRunner
             {
                 _logger.LogDebug("NAPS2.TW - Expected memory transfer, but got native transfer?");
             }
-            if (e.MemoryData != null)
+            if (_options.TwainOptions.TransferMode == TwainTransferMode.File)
+            {
+                // FOPA: the driver wrote a compressed file; it goes on as it is, the receiver decodes it.
+                var path = e.FileDataPath;
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                {
+                    throw new DeviceException($"TWAIN file transfer: the driver wrote no file (image {_fileIndex}).");
+                }
+                try
+                {
+                    _twainEvents.NativeImageTransferred(new TwainNativeImage
+                    {
+                        Buffer = ByteString.CopyFrom(File.ReadAllBytes(path))
+                    });
+                }
+                finally
+                {
+                    File.Delete(path);
+                }
+            }
+            else if (e.MemoryData != null)
             {
                 _twainEvents.MemoryBufferTransferred(ToMemoryBuffer(e.MemoryData, e.MemoryInfo));
             }
@@ -323,6 +384,22 @@ internal class TwainScanRunner
                 pageStart.ImageData = ToImageData(e.PendingImageInfo);
             }
             _twainEvents.PageStart(pageStart);
+            if (_options.TwainOptions.TransferMode == TwainTransferMode.File)
+            {
+                // FOPA: a fresh name before every image, or the driver overwrites the previous one.
+                var path = Path.Combine(Path.GetTempPath(),
+                    $"naps2-fopa-{Environment.ProcessId}-{++_fileIndex}.{(_fileFormat == FileFormat.Tiff ? "tif" : "jpg")}");
+                var rc = e.DataSource.DGControl.SetupFileXfer.Set(new TWSetupFileXfer
+                {
+                    FileName = path,
+                    Format = _fileFormat,
+                    VRefNum = 0
+                });
+                if (rc != ReturnCode.Success)
+                {
+                    _logger.LogDebug("NAPS2.TW - FOPA SetupFileXfer failed: {rc}", rc);
+                }
+            }
             if (_cancelToken.IsCancellationRequested)
             {
                 e.CancelAll = true;
@@ -365,6 +442,17 @@ internal class TwainScanRunner
 
     private void ConfigureSource(DataSource source)
     {
+        // FOPA: the driver's own settings first, so every explicit option below still wins.
+        if (_options.TwainOptions.DriverSettings is { Length: > 0 } driverSettings)
+        {
+            WriteDriverSettings(source, driverSettings);
+        }
+        if (_options.TwainOptions.CaptureDriverSettings)
+        {
+            // The dialog shows what the driver has; nothing of ours goes over it.
+            return;
+        }
+
         // Transfer Mode
         if (_options.TwainOptions.TransferMode == TwainTransferMode.Default)
         {
@@ -381,10 +469,20 @@ internal class TwainScanRunner
                 _options.TwainOptions.TransferMode = TwainTransferMode.Memory;
             }
         }
+        if (_options.TwainOptions.TransferMode == TwainTransferMode.File && _options.UseNativeUI)
+        {
+            // The driver's dialog decides the pixel type, and with it whether JPEG or G4 applies.
+            _logger.LogDebug("NAPS2.TW - FOPA File transfer is not used with the native UI; Native instead.");
+            _options.TwainOptions.TransferMode = TwainTransferMode.Native;
+        }
         if (_options.TwainOptions.TransferMode == TwainTransferMode.Memory)
         {
             _logger.LogDebug("Transfer mode: Memory");
             source.Capabilities.ICapXferMech.SetValue(XferMech.Memory);
+        }
+        else if (_options.TwainOptions.TransferMode == TwainTransferMode.File)
+        {
+            _logger.LogDebug("Transfer mode: File (set after the pixel type)");
         }
         else
         {
@@ -428,6 +526,8 @@ internal class TwainScanRunner
         {
             _logger.LogDebug("NAPS2.TW - FOPA ICapExtImageInfo not supported");
         }
+
+        ConfigureFopaOptions(source);
 
         // Paper Source
         switch (_options.PaperSource)
@@ -531,6 +631,157 @@ internal class TwainScanRunner
         var closest = possibleValues.OrderBy(v => Math.Abs(v - value)).First();
         cap.SetValue(closest);
     }
-}
+    /// <summary>FOPA: double feed stop, patch codes and the imprinter, each only when asked for.</summary>
+    private void ConfigureFopaOptions(DataSource source)
+    {
+        var twain = _options.TwainOptions;
+        if (twain.StopOnDoubleFeed)
+        {
+            if (source.Capabilities.CapDoubleFeedDetection.IsSupported)
+            {
+                var rc = source.Capabilities.CapDoubleFeedDetection.SetValue(DoubleFeedDetection.Ultrasonic);
+                _logger.LogDebug("NAPS2.TW - FOPA CapDoubleFeedDetection ultrasonic: rc={rc}", rc);
+            }
+            if (source.Capabilities.CapDoubleFeedDetectionResponse.IsSupported)
+            {
+                var rc = source.Capabilities.CapDoubleFeedDetectionResponse.SetValue(DoubleFeedDetectionResponse.Stop);
+                _logger.LogDebug("NAPS2.TW - FOPA CapDoubleFeedDetectionResponse stop: rc={rc}", rc);
+            }
+            else
+            {
+                _logger.LogDebug("NAPS2.TW - FOPA double feed response not supported");
+            }
+        }
+        if (twain.DetectPatchCodes)
+        {
+            var rc = source.Capabilities.ICapPatchCodeDetectionEnabled.IsSupported
+                ? source.Capabilities.ICapPatchCodeDetectionEnabled.SetValue(BoolType.True)
+                : ReturnCode.Failure;
+            _logger.LogDebug("NAPS2.TW - FOPA ICapPatchCodeDetectionEnabled: rc={rc}", rc);
+        }
+        if (twain.ImprinterText != null)
+        {
+            if (source.Capabilities.CapPrinterEnabled.IsSupported)
+            {
+                source.Capabilities.CapPrinterEnabled.SetValue(BoolType.True);
+                source.Capabilities.CapPrinterMode.SetValue(PrinterMode.SingleString);
+                var rc = source.Capabilities.CapPrinterString.SetValue(twain.ImprinterText);
+                _logger.LogDebug("NAPS2.TW - FOPA imprinter text set: rc={rc}", rc);
+            }
+            else
+            {
+                _logger.LogDebug("NAPS2.TW - FOPA no imprinter");
+            }
+        }
+        if (twain.TransferMode == TwainTransferMode.File)
+        {
+            ConfigureFileTransfer(source);
+        }
+    }
 
+    /// <summary>
+    /// FOPA: the driver compresses and writes the file, so the uncompressed image never enters the
+    /// 32-bit worker. Without the format and compression the driver writes an uncompressed TIFF
+    /// (scanner-capture measurement: A4 300 dpi black and white, 1.1 MB instead of 23 KB).
+    /// </summary>
+    private void ConfigureFileTransfer(DataSource source)
+    {
+        bool bitonal = _options.BitDepth == BitDepth.BlackAndWhite;
+        _fileFormat = bitonal ? FileFormat.Tiff : FileFormat.Jfif;
+        var rc1 = source.Capabilities.ICapXferMech.SetValue(XferMech.File);
+        var rc2 = source.Capabilities.ICapImageFileFormat.SetValue(_fileFormat);
+        var rc3 = source.Capabilities.ICapCompression.SetValue(bitonal ? CompressionType.Group4 : CompressionType.Jpeg);
+        var rc4 = bitonal ? ReturnCode.Success : source.Capabilities.ICapJpegQuality.SetValue((JpegQuality) _options.TwainOptions.FileJpegQuality);
+        _logger.LogDebug("NAPS2.TW - FOPA file transfer {format}: xfer={rc1} format={rc2} compression={rc3} quality={rc4}",
+            _fileFormat, rc1, rc2, rc3, rc4);
+        if (rc1 != ReturnCode.Success)
+        {
+            throw new DeviceException($"TWAIN file transfer is not accepted by the driver: {rc1}");
+        }
+    }
+
+    // FOPA: DAT_CUSTOMDSDATA. NTwain keeps its typed triplet internal, but DGCustom.DsmEntry takes any
+    // triplet (the scanner-capture TwainHost, measured on the fi-7700). TW_CUSTOMDSDATA is InfoLength
+    // (TW_UINT32) and hData (TW_HANDLE): 8 bytes in the 32-bit worker.
+    private const DataArgumentType DatCustomDsData = (DataArgumentType) 0x000C;
+
+    private void WriteDriverSettings(DataSource source, byte[] data)
+    {
+        var handle = GlobalAlloc(GmemMoveable, (UIntPtr) data.Length);
+        if (handle == IntPtr.Zero)
+        {
+            throw new DeviceException("GlobalAlloc failed for the driver settings.");
+        }
+        var ptr = Marshal.AllocHGlobal(IntPtr.Size * 2);
+        try
+        {
+            var locked = GlobalLock(handle);
+            Marshal.Copy(data, 0, locked, data.Length);
+            GlobalUnlock(handle);
+            Marshal.WriteInt32(ptr, 0, data.Length);
+            Marshal.WriteIntPtr(ptr, IntPtr.Size, handle);
+            var rc = source.DGCustom.DsmEntry(DataGroups.Control, DatCustomDsData, Message.Set, ptr);
+            _logger.LogDebug("NAPS2.TW - FOPA driver settings applied ({bytes} bytes): rc={rc}", data.Length, rc);
+            if (rc != ReturnCode.Success)
+            {
+                throw new DeviceException($"The driver refused the saved settings: {rc}");
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+            GlobalFree(handle);
+        }
+    }
+
+    private void ReportDriverSettings(DataSource? source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+        var ptr = Marshal.AllocHGlobal(IntPtr.Size * 2);
+        try
+        {
+            Marshal.WriteInt32(ptr, 0, 0);
+            Marshal.WriteIntPtr(ptr, IntPtr.Size, IntPtr.Zero);
+            var rc = source.DGCustom.DsmEntry(DataGroups.Control, DatCustomDsData, Message.Get, ptr);
+            var length = Marshal.ReadInt32(ptr, 0);
+            var handle = Marshal.ReadIntPtr(ptr, IntPtr.Size);
+            _logger.LogDebug("NAPS2.TW - FOPA driver settings read: rc={rc} bytes={bytes}", rc, length);
+            if (rc != ReturnCode.Success || length <= 0 || handle == IntPtr.Zero)
+            {
+                return;
+            }
+            var locked = GlobalLock(handle);
+            var buffer = new byte[length];
+            Marshal.Copy(locked, buffer, 0, length);
+            GlobalUnlock(handle);
+            GlobalFree(handle);
+            _twainEvents.DriverSettings(new TwainDriverSettings { Data = ByteString.CopyFrom(buffer) });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "NAPS2.TW - FOPA could not read the driver settings");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
+    }
+
+    private const uint GmemMoveable = 0x0002;
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalLock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool GlobalUnlock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalFree(IntPtr hMem);
+}
 #endif

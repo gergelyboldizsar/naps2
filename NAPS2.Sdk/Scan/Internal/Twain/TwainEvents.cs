@@ -6,16 +6,18 @@ internal class TwainEvents : ITwainEvents
 {
     private readonly Action<TwainPageStart> _pageStartCallback;
     private readonly Action<TwainPageMetadata> _pageMetadataCallback;
+    private readonly Action<TwainDriverSettings> _driverSettingsCallback;
     private readonly Action<TwainNativeImage> _nativeImageCallback;
     private readonly Action<TwainMemoryBuffer> _memoryBufferCallback;
     private readonly Action<TwainTransferCanceled> _transferCanceledCallback;
 
     public TwainEvents(Action<TwainPageStart> pageStartCallback, Action<TwainNativeImage> nativeImageCallback,
         Action<TwainMemoryBuffer> memoryBufferCallback, Action<TwainTransferCanceled> transferCanceledCallback,
-        Action<TwainPageMetadata> pageMetadataCallback)
+        Action<TwainPageMetadata> pageMetadataCallback, Action<TwainDriverSettings> driverSettingsCallback)
     {
         _pageStartCallback = pageStartCallback;
         _pageMetadataCallback = pageMetadataCallback;
+        _driverSettingsCallback = driverSettingsCallback;
         _nativeImageCallback = nativeImageCallback;
         _memoryBufferCallback = memoryBufferCallback;
         _transferCanceledCallback = transferCanceledCallback;
@@ -29,6 +31,11 @@ internal class TwainEvents : ITwainEvents
     public void PageMetadata(TwainPageMetadata pageMetadata)
     {
         _pageMetadataCallback(pageMetadata);
+    }
+
+    public void DriverSettings(TwainDriverSettings driverSettings)
+    {
+        _driverSettingsCallback(driverSettings);
     }
 
     public void NativeImageTransferred(TwainNativeImage nativeImage)

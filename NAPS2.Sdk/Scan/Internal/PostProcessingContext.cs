@@ -20,6 +20,12 @@ internal class PostProcessingContext
     /// </summary>
     public PageSide PageSide { get; set; }
 
+    /// <summary>FOPA: the patch code the driver read on the page (TWEI_PATCHCODE), null when none.</summary>
+    public string? PatchCode { get; set; }
+
+    /// <summary>FOPA: what the imprinter printed on the sheet (TWEI_PRINTERTEXT), null when nothing.</summary>
+    public string? PrinterText { get; set; }
+
     // TODO: Consider renaming this (to RenderedFilePath?), and make sure it works correctly (e.g. across normal/worker/network scans)
     /// <summary>
     /// Stores the path to an image file on disk with the scanned image (after some transformations) for use in

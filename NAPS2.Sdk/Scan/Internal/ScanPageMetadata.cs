@@ -7,4 +7,6 @@ namespace NAPS2.Scan.Internal;
 /// </summary>
 /// <param name="SheetNumber">The physical sheet number (TWEI_PAPERCOUNT), 0 when unknown.</param>
 /// <param name="PageSide">Which side of the sheet the image came from (TWEI_PAGESIDE).</param>
-internal record ScanPageMetadata(int SheetNumber, PageSide PageSide);
+/// <param name="PatchCode">The patch code the driver read on the page (TWEI_PATCHCODE), null when none.</param>
+/// <param name="PrinterText">What the imprinter printed on the sheet (TWEI_PRINTERTEXT), null when nothing.</param>
+internal record ScanPageMetadata(int SheetNumber, PageSide PageSide, string? PatchCode = null, string? PrinterText = null);

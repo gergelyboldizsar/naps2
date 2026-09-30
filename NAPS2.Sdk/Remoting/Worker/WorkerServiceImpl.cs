@@ -395,6 +395,10 @@ internal class WorkerServiceImpl : WorkerService.WorkerServiceBase
                 pageMetadata => sequencedWriter.Write(new TwainScanResponse
                 {
                     PageMetadata = pageMetadata
+                }),
+                driverSettings => sequencedWriter.Write(new TwainScanResponse
+                {
+                    DriverSettings = driverSettings
                 })
             );
             var options = request.OptionsXml.FromXml<ScanOptions>();

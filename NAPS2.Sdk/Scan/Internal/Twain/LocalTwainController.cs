@@ -152,7 +152,8 @@ internal class LocalTwainController : ITwainController
                         },
                         FlatbedCaps = flatbedCaps,
                         FeederCaps = feederCaps,
-                        DuplexCaps = supportsDuplex ? feederCaps : null
+                        DuplexCaps = supportsDuplex ? feederCaps : null,
+                        TwainCaps = GetTwainCaps(ds)
                     };
                 }
                 finally
@@ -181,6 +182,36 @@ internal class LocalTwainController : ITwainController
                 _logger.LogError(e, "Error closing TWAIN session for capabilities");
             }
         }
+    }
+
+    /// <summary>FOPA: each answer on its own, so a driver that trips over one cap still reports the rest.</summary>
+    private TwainCaps GetTwainCaps(DataSource ds)
+    {
+        bool Try(Func<bool> check, string name)
+        {
+            try
+            {
+                return check();
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "NAPS2.TW - FOPA could not check {Cap}", name);
+                return false;
+            }
+        }
+
+        return new TwainCaps
+        {
+            SupportsDoubleFeedStop = Try(() => ds.Capabilities.CapDoubleFeedDetectionResponse.IsSupported &&
+                                               ds.Capabilities.CapDoubleFeedDetectionResponse.GetValues()
+                                                   .Contains(DoubleFeedDetectionResponse.Stop), "CAP_DOUBLEFEEDDETECTIONRESPONSE"),
+            SupportsPatchCodes = Try(() => ds.Capabilities.ICapPatchCodeDetectionEnabled.IsSupported, "ICAP_PATCHCODEDETECTIONENABLED"),
+            SupportsImprinter = Try(() => ds.Capabilities.CapPrinterEnabled.IsSupported, "CAP_PRINTERENABLED"),
+            SupportsDriverSettings = Try(() => ds.Capabilities.CapCustomDSData.IsSupported &&
+                                               ds.Capabilities.CapCustomDSData.GetCurrent() == BoolType.True, "CAP_CUSTOMDSDATA"),
+            SupportsFileTransfer = Try(() => ds.Capabilities.ICapXferMech.GetValues().Contains(XferMech.File) &&
+                                             ds.Capabilities.ICapCompression.GetValues().Contains(CompressionType.Jpeg), "ICAP_XFERMECH")
+        };
     }
 
     private PerSourceCaps GetPerSourceCaps(DataSource ds)

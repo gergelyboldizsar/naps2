@@ -141,7 +141,9 @@ internal class RemotePostProcessor : IRemotePostProcessor
         {
             PageNumber = postProcessingContext.PageNumber,
             // FOPA: the physical sheet number the driver reported, 0 when it reported none.
-            SheetNumber = postProcessingContext.SheetNumber
+            SheetNumber = postProcessingContext.SheetNumber,
+            PatchCode = postProcessingContext.PatchCode,
+            PrinterText = postProcessingContext.PrinterText
         };
 
         // FOPA: a driver reported page side is authoritative in every paper source, because it
