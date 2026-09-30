@@ -63,7 +63,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             if (ex.Status.StatusCode != StatusCode.Cancelled)
             {
@@ -85,7 +85,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             throw;
         }
@@ -129,7 +129,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             if (ex.StatusCode != StatusCode.Cancelled)
             {
@@ -224,7 +224,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             if (ex.StatusCode != StatusCode.Cancelled)
             {
@@ -246,7 +246,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             throw;
         }
@@ -265,7 +265,7 @@ internal class WorkerServiceAdapter
         {
             if (ex.StatusCode == StatusCode.Unavailable)
             {
-                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage, ex);
+                throw new ScanDriverUnknownException(PlatformCompat.System.WorkerCrashMessage);
             }
             throw;
         }

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Reflection;
 using System.Xml.Linq;
 using EmbedIO;
@@ -33,6 +34,7 @@ internal class EsclApiController : WebApiController
         var caps = _deviceConfig.Capabilities;
         var protocol = _securityPolicy.HasFlag(EsclSecurityPolicy.ServerRequireHttps) ? "https" : "http";
         var iconUri = caps.IconPng != null ? $"{protocol}://naps2-{caps.Uuid}.local.:{_deviceConfig.Port}/eSCL/icon.png" : "";
+        var adminUri = $"{protocol}://naps2-{caps.Uuid}.local.:{_deviceConfig.Port}/eSCL/admin";
         var doc =
             EsclXmlHelper.CreateDocAsString(
                 new XElement(ScanNs + "ScannerCapabilities",
@@ -41,7 +43,7 @@ internal class EsclApiController : WebApiController
                     new XElement(PwgNs + "SerialNumber", caps.SerialNumber),
                     new XElement(ScanNs + "Manufacturer", caps.Manufacturer),
                     new XElement(ScanNs + "UUID", caps.Uuid),
-                    new XElement(ScanNs + "AdminURI", ""),
+                    new XElement(ScanNs + "AdminURI", adminUri),
                     new XElement(ScanNs + "IconURI", iconUri),
                     new XElement(ScanNs + "Naps2Extensions", "Progress;ErrorDetails;ShortTimeout;AnyDpi"),
                     new XElement(ScanNs + "Platen",
@@ -120,6 +122,38 @@ internal class EsclApiController : WebApiController
         }
     }
 
+    [Route(HttpVerbs.Get, "/admin")]
+    public async Task GetAdminPage()
+    {
+        var caps = _deviceConfig.Capabilities;
+        var jobCount = _serverState.Jobs.Count();
+        var html = $"""
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                    <meta charset="utf-8">
+                    <title>{HtmlEncode(caps.MakeAndModel)}</title>
+                    </head>
+                    <body>
+                    <h1>{HtmlEncode(caps.MakeAndModel)}</h1>
+                    <p>Shared by NAPS2</p>
+                    <ul>
+                    <li>Manufacturer: {HtmlEncode(caps.Manufacturer)}</li>
+                    <li>Serial number: {HtmlEncode(caps.SerialNumber)}</li>
+                    <li>UUID: {HtmlEncode(caps.Uuid)}</li>
+                    <li>Active jobs: {jobCount}</li>
+                    </ul>
+                    </body>
+                    </html>
+
+                    """;
+        Response.ContentType = "text/html";
+        using var writer = new StreamWriter(HttpContext.OpenResponseStream());
+        await writer.WriteAsync(html);
+    }
+
+    private static string HtmlEncode(string? value) => WebUtility.HtmlEncode(value ?? "");
+
     [Route(HttpVerbs.Get, "/ScannerStatus")]
     public async Task GetScannerStatus()
     {
@@ -138,7 +172,7 @@ internal class EsclApiController : WebApiController
                         jobInfo.State == EsclJobState.Processing ? "JobScanning" : "JobCompletedSuccessfully"))));
         }
         var scannerState = _serverState.IsProcessing ? EsclScannerState.Processing : EsclScannerState.Idle;
-        var adfState = _serverState.IsProcessing ? EsclAdfState.ScannerAdfProcessing : EsclAdfState.ScannedAdfLoaded;
+        var adfState = _serverState.IsProcessing ? EsclAdfState.ScannerAdfProcessing : EsclAdfState.ScannerAdfLoaded;
         var doc =
             EsclXmlHelper.CreateDocAsString(
                 new XElement(ScanNs + "ScannerStatus",

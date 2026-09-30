@@ -7,8 +7,9 @@ namespace NAPS2.Sdk.Tests.Scan;
 
 public class SaneScanDriverOptionTests : ContextualTests
 {
-    private readonly SaneScanDriver _driver;
+    private const string LIBRARY_VERSION = "1.2.3";
 
+    private readonly SaneScanDriver _driver;
     public SaneScanDriverOptionTests()
     {
         _driver = new SaneScanDriver(ScanningContext);
@@ -34,9 +35,63 @@ public class SaneScanDriverOptionTests : ContextualTests
         VerifyCapPaperSources(device, true, true, true);
     }
 
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("True", true)]
+    [InlineData("false", false)]
+    [InlineData("False", false)]
+    public void SetOptions_BoolKeyValueOption(string value, bool expected)
+    {
+        var device = BoolOptionDeviceMock();
+        var options = new ScanOptions
+        {
+            PaperSource = PaperSource.Feeder,
+            PageSize = PageSize.A4,
+            KeyValueOptions = { ["adf-crp"] = value }
+        };
+
+        _driver.SetOptions(device, options);
+
+        // Note this must be applied after the scan area is set, as some backends (e.g. epsonds)
+        // reset auto-crop when br-x/br-y is written.
+        Assert.Equal(expected, device.GetValue(6));
+    }
+
+    [Theory]
+    [InlineData("maybe")]
+    [InlineData("yes")]
+    [InlineData("1")]
+    public void SetOptions_BoolKeyValueOption_IgnoresUnparseableValue(string value)
+    {
+        var device = BoolOptionDeviceMock();
+        var options = new ScanOptions
+        {
+            PaperSource = PaperSource.Feeder,
+            PageSize = PageSize.A4,
+            KeyValueOptions = { ["adf-crp"] = value }
+        };
+
+        _driver.SetOptions(device, options);
+
+        Assert.Throws<KeyNotFoundException>(() => device.GetValue(6));
+    }
+
+    private static DeviceOptionsMock BoolOptionDeviceMock() => new([
+        SaneOption.CreateStringListForTesting(1, SaneOptionNames.SOURCE, ["Flatbed", "ADF"]),
+        SaneOption.CreateFixedForTesting(2, SaneOptionNames.TOP_LEFT_X,
+            new SaneRange { Min = 0, Max = 100, Quant = 1 }),
+        SaneOption.CreateFixedForTesting(3, SaneOptionNames.TOP_LEFT_Y,
+            new SaneRange { Min = 0, Max = 100, Quant = 1 }),
+        SaneOption.CreateFixedForTesting(4, SaneOptionNames.BOT_RIGHT_X,
+            new SaneRange { Min = 0, Max = 100, Quant = 1 }),
+        SaneOption.CreateFixedForTesting(5, SaneOptionNames.BOT_RIGHT_Y,
+            new SaneRange { Min = 0, Max = 100, Quant = 1 }),
+        SaneOption.CreateBooleanForTesting(6, "adf-crp")
+    ]);
+
     [Fact]
     public void GetSaneCaps()
-    {
+    {        
         var device = new DeviceOptionsMock([
             SaneOption.CreateFixedForTesting(1, SaneOptionNames.TOP_LEFT_X,
                 new SaneRange { Min = 0, Max = 100, Quant = 1 }),
@@ -51,9 +106,10 @@ public class SaneScanDriverOptionTests : ContextualTests
             SaneOption.CreateStringListForTesting(7, SaneOptionNames.MODE, ["Gray", "Color"])
         ]);
 
-        var caps = _driver.GetSaneCaps(device, "pixma");
+        var caps = _driver.GetSaneCaps(device, "pixma", LIBRARY_VERSION);
 
         Assert.Equal("pixma", caps.MetadataCaps?.DriverSubtype);
+        Assert.Equal(LIBRARY_VERSION, caps.MetadataCaps?.ProtocolVersion);
         VerifyCapPaperSources(device, true, false, false);
         var flatbedCaps = caps.FlatbedCaps;
         Assert.NotNull(flatbedCaps);
@@ -64,6 +120,18 @@ public class SaneScanDriverOptionTests : ContextualTests
         Assert.Equal(true, flatbedCaps.BitDepthCaps?.SupportsColor);
         Assert.Equal(true, flatbedCaps.BitDepthCaps?.SupportsGrayscale);
         Assert.Equal(false, flatbedCaps.BitDepthCaps?.SupportsBlackAndWhite);
+    }
+
+    [Fact]
+    public void GetSaneCaps_LibraryVersion()
+    {
+        var device = new DeviceOptionsMock([
+            SaneOption.CreateStringListForTesting(1, SaneOptionNames.SOURCE, ["Flatbed"])
+        ]);
+
+        var caps = _driver.GetSaneCaps(device, "", LIBRARY_VERSION);
+
+        Assert.Equal(LIBRARY_VERSION, caps.MetadataCaps?.ProtocolVersion);
     }
 
     [Fact]
@@ -160,7 +228,7 @@ public class SaneScanDriverOptionTests : ContextualTests
 
     [Fact]
     public void SetOptions_DuplexWithPartialMatch()
-    {
+    {        
         var device = new DeviceOptionsMock([
             SaneOption.CreateStringListForTesting(1, SaneOptionNames.SOURCE,
                 ["Feeder(left aligned)", "Feeder(left aligned,Duplex)"])
@@ -176,7 +244,7 @@ public class SaneScanDriverOptionTests : ContextualTests
 
     [Fact]
     public void SetOptions_DuplexBoolean()
-    {
+    {        
         // Settings from Epson WF-3520 with epsonscan2 backend
         var device = new DeviceOptionsMock([
             SaneOption.CreateStringListForTesting(1, SaneOptionNames.SOURCE,
@@ -290,7 +358,7 @@ public class SaneScanDriverOptionTests : ContextualTests
 
     private void VerifyCapPaperSources(DeviceOptionsMock device, bool flatbed, bool feeder, bool duplex)
     {
-        var caps = _driver.GetSaneCaps(device, "");
+        var caps = _driver.GetSaneCaps(device, "", LIBRARY_VERSION);
         Assert.NotNull(caps.PaperSourceCaps);
         Assert.Equal(flatbed, caps.PaperSourceCaps.SupportsFlatbed);
         Assert.Equal(feeder, caps.PaperSourceCaps.SupportsFeeder);

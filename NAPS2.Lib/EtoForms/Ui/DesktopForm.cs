@@ -34,6 +34,7 @@ public abstract class DesktopForm : EtoFormBase
     protected readonly ListProvider<Command> _scanMenuCommands = new();
     private readonly ListProvider<Command> _languageMenuCommands = new();
     protected readonly ListProvider<Command> _editWithCommands = new();
+    protected readonly ListProvider<Command> _manualDuplexPreviewCommands = new();
     private readonly ContextMenu _contextMenu = new();
 
     private readonly NotificationArea _notificationArea;
@@ -86,6 +87,7 @@ public abstract class DesktopForm : EtoFormBase
         EditWithAppChanged();
         UpdateProfilesToolbar();
         InitLanguageDropdown();
+        UpdateManualDuplex();
 
         _listView = EtoPlatform.Current.CreateListView(imageListViewBehavior);
         _listView.Selection = ImageList.Selection;
@@ -339,16 +341,29 @@ public abstract class DesktopForm : EtoFormBase
         if (!hiddenButtons.HasFlag(ToolbarButtons.Move))
             CreateToolbarStackedButtons(Commands.MoveUp, Commands.MoveDown);
         if (!hiddenButtons.HasFlag(ToolbarButtons.Reorder))
-            CreateToolbarMenu(Commands.ReorderMenu, new MenuProvider()
-                .Append(Commands.Interleave)
-                .Append(Commands.Deinterleave)
-                .Separator()
-                .Append(Commands.AltInterleave)
-                .Append(Commands.AltDeinterleave)
-                .Separator()
-                .SubMenu(Commands.ReverseMenu, new MenuProvider()
-                    .Append(Commands.ReverseAll)
-                    .Append(Commands.ReverseSelected)));
+        {
+            var menuProvider = new MenuProvider();
+            if (!hiddenButtons.HasFlag(ToolbarButtons.ManualDuplex))
+            {
+                menuProvider
+                    .Append(Commands.ManualDuplex)
+                    .Dynamic(_manualDuplexPreviewCommands)
+                    .Separator();
+            }
+            if (!hiddenButtons.HasFlag(ToolbarButtons.Interleave))
+            {
+                menuProvider
+                    .Append(Commands.Interleave)
+                    .Append(Commands.Deinterleave)
+                    .Append(Commands.AltInterleave)
+                    .Append(Commands.AltDeinterleave)
+                    .Separator();
+            }
+            menuProvider.SubMenu(Commands.ReverseMenu, new MenuProvider()
+                .Append(Commands.ReverseAll)
+                .Append(Commands.ReverseSelected));
+            CreateToolbarMenu(Commands.ReorderMenu, menuProvider);
+        }
         CreateToolbarSeparator();
         if (!hiddenButtons.HasFlag(ToolbarButtons.Delete))
             CreateToolbarButton(Commands.Delete);
@@ -570,6 +585,13 @@ public abstract class DesktopForm : EtoFormBase
         {
             _editWithCommands.Value = ImmutableList<Command>.Empty;
         }
+    }
+
+    public void UpdateManualDuplex()
+    {
+        _manualDuplexPreviewCommands.Value = Config.Get(c => c.ManualDuplexSettings.AlwaysShowPreview)
+            ? []
+            : [Commands.ManualDuplexPreview];
     }
 
     protected virtual void UpdateTitle(ScanProfile? defaultProfile)

@@ -113,6 +113,11 @@ public class MdnsAdvertiser : IDisposable
                     ? $"representation=http://naps2-{caps.Uuid}.local.:{deviceConfig.Port}/eSCL/icon.png"
                     : $"representation=https://naps2-{caps.Uuid}.local.:{deviceConfig.TlsPort}/eSCL/icon.png");
         }
+        // The eSCL spec requires adminurl, and some clients ignore advertisements without it
+        record.Strings.Add(
+            http
+                ? $"adminurl=http://naps2-{caps.Uuid}.local.:{deviceConfig.Port}/eSCL/admin"
+                : $"adminurl=https://naps2-{caps.Uuid}.local.:{deviceConfig.TlsPort}/eSCL/admin");
         record.Strings.Add("rs=eSCL");
         record.Strings.Add($"ty={name}");
         record.Strings.Add("pdl=application/pdf,image/jpeg,image/png");

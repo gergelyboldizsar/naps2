@@ -37,6 +37,10 @@ public class CropForm : UnaryImageFormBase
     {
         Title = UiStrings.Crop;
         IconName = "transform_crop_small";
+        HelpText = string.Format(UiStrings.CropHelp,
+            EtoPlatform.Current.IsMac ? UiStrings.CommandKey : UiStrings.ControlKey,
+            EtoPlatform.Current.IsMac ? UiStrings.OptionKey : UiStrings.AltKey,
+            UiStrings.ShiftKey);
 
         _colorScheme = colorScheme;
 
@@ -44,6 +48,7 @@ public class CropForm : UnaryImageFormBase
         Overlay.MouseDown += Overlay_MouseDown;
         Overlay.MouseMove += Overlay_MouseMove;
         Overlay.MouseUp += Overlay_MouseUp;
+        KeyDown += CropForm_KeyDown;
     }
 
     // The handle length is proportional to the window size
@@ -65,13 +70,6 @@ public class CropForm : UnaryImageFormBase
             _cropT = _realT / RealImageHeight;
             _cropB = _realB / RealImageHeight;
         }
-    }
-
-    protected override void OnShown(EventArgs e)
-    {
-        base.OnShown(e);
-        // The crop form has no other focusable elements, so focus "OK" instead of "Revert"
-        DefaultButton.Focus();
     }
 
     protected override void Apply()
@@ -101,6 +99,81 @@ public class CropForm : UnaryImageFormBase
             RealImageWidth,
             RealImageHeight)
     ];
+
+    private void CropForm_KeyDown(object? sender, KeyEventArgs e)
+    {
+        bool accelerate = e.Modifiers.HasFlag(Keys.Shift);
+        bool moveOtherHandle = e.Modifiers.HasFlag(Application.Instance.CommonModifier);
+        bool moveWhole = e.Modifiers.HasFlag(Keys.Alt);
+        int d = accelerate ? 10 : 1;
+
+        if (e.Key == Keys.Up)
+        {
+            if (moveWhole)
+            {
+                MoveWholeArea(0, -d);
+            }
+            else if (moveOtherHandle)
+            {
+                MoveCropTop(-d);
+            }
+            else
+            {
+                MoveCropBottom(-d);
+            }
+        }
+        if (e.Key == Keys.Down)
+        {
+            if (moveWhole)
+            {
+                MoveWholeArea(0, d);
+            }
+            else if (moveOtherHandle)
+            {
+                MoveCropTop(d);
+            }
+            else
+            {
+                MoveCropBottom(d);
+            }
+        }
+        if (e.Key == Keys.Left)
+        {
+            if (moveWhole)
+            {
+                MoveWholeArea(-d, 0);
+            }
+            else if (moveOtherHandle)
+            {
+                MoveCropLeft(-d);
+            }
+            else
+            {
+                MoveCropRight(-d);
+            }
+        }
+        if (e.Key == Keys.Right)
+        {
+            if (moveWhole)
+            {
+                MoveWholeArea(d, 0);
+            }
+            else if (moveOtherHandle)
+            {
+                MoveCropLeft(d);
+            }
+            else
+            {
+                MoveCropRight(d);
+            }
+        }
+        if (e.Key is Keys.Up or Keys.Down or Keys.Left or Keys.Right)
+        {
+            UpdateRealCoords();
+            Overlay.Invalidate();
+            e.Handled = true;
+        }
+    }
 
     private void Overlay_MouseDown(object? sender, MouseEventArgs e)
     {
@@ -142,20 +215,26 @@ public class CropForm : UnaryImageFormBase
             if (dyM == dyMin && dxL == dxMin) return Handle.Left;
             if (dyB == dyMin && dxM == dxMin) return Handle.Bottom;
             if (dyM == dyMin && dxR == dxMin) return Handle.Right;
+            if (dyM == dyMin && dxM == dxMin) return Handle.Middle;
         }
         return Handle.None;
     }
 
     private void Overlay_MouseUp(object? sender, MouseEventArgs e)
     {
-        _realT = _cropT * RealImageHeight;
-        _realB = _cropB * RealImageHeight;
-        _realL = _cropL * RealImageWidth;
-        _realR = _cropR * RealImageWidth;
+        UpdateRealCoords();
         _activeHandle = Handle.None;
         _freeformAvailable = false;
         _freeformActive = false;
         Overlay.Invalidate();
+    }
+
+    private void UpdateRealCoords()
+    {
+        _realT = _cropT * RealImageHeight;
+        _realB = _cropB * RealImageHeight;
+        _realL = _cropL * RealImageWidth;
+        _realR = _cropR * RealImageWidth;
     }
 
     private void UpdateCrop(PointF mousePos)
@@ -190,21 +269,74 @@ public class CropForm : UnaryImageFormBase
         {
             if (_activeHandle.HasFlag(Handle.Top))
             {
-                _cropT = (_realT / RealImageHeight + delta.Y / _overlayH).Clamp(0, 1 - _cropB);
+                MoveCropTop(delta.Y);
             }
             if (_activeHandle.HasFlag(Handle.Right))
             {
-                _cropR = (_realR / RealImageWidth - delta.X / _overlayW).Clamp(0, 1 - _cropL);
+                MoveCropRight(delta.X);
             }
             if (_activeHandle.HasFlag(Handle.Bottom))
             {
-                _cropB = (_realB / RealImageHeight - delta.Y / _overlayH).Clamp(0, 1 - _cropT);
+                MoveCropBottom(delta.Y);
             }
             if (_activeHandle.HasFlag(Handle.Left))
             {
-                _cropL = (_realL / RealImageWidth + delta.X / _overlayW).Clamp(0, 1 - _cropR);
+                MoveCropLeft(delta.X);
+            }
+            if (_activeHandle.HasFlag(Handle.Middle))
+            {
+                MoveWholeArea(delta.X, delta.Y);
             }
         }
+    }
+
+    private void MoveWholeArea(float deltaX, float deltaY)
+    {
+        // We move one handle, then make the other handle match.
+        // Compared to moving both handles independently, this ensures the overall crop size doesn't change once
+        // we hit the end of the image.
+        float ySum = _cropB + _cropT;
+        float xSum = _cropL + _cropR;
+        if (deltaY < 0)
+        {
+            MoveCropTop(deltaY);
+            _cropB = ySum - _cropT;
+        }
+        else if (deltaY > 0)
+        {
+            MoveCropBottom(deltaY);
+            _cropT = ySum - _cropB;
+        }
+        if (deltaX < 0)
+        {
+            MoveCropLeft(deltaX);
+            _cropR = xSum - _cropL;
+        }
+        else if (deltaX > 0)
+        {
+            MoveCropRight(deltaX);
+            _cropL = xSum - _cropR;
+        }
+    }
+
+    private void MoveCropTop(float deltaY)
+    {
+        _cropT = (_realT / RealImageHeight + deltaY / _overlayH).Clamp(0, 1 - _cropB);
+    }
+
+    private void MoveCropRight(float deltaX)
+    {
+        _cropR = (_realR / RealImageWidth - deltaX / _overlayW).Clamp(0, 1 - _cropL);
+    }
+
+    private void MoveCropBottom(float deltaY)
+    {
+        _cropB = (_realB / RealImageHeight - deltaY / _overlayH).Clamp(0, 1 - _cropT);
+    }
+
+    private void MoveCropLeft(float deltaX)
+    {
+        _cropL = (_realL / RealImageWidth + deltaX / _overlayW).Clamp(0, 1 - _cropR);
     }
 
     private void Overlay_MouseMove(object? sender, MouseEventArgs e)
@@ -262,6 +394,7 @@ public class CropForm : UnaryImageFormBase
         // For a small crop selection, we shrink the handles so they don't overlap
         var xHandleLen = Math.Min(HandleLength, (x2 - x1) / 5);
         var yHandleLen = Math.Min(HandleLength, (y2 - y1) / 5);
+        var midHandleLen = Math.Min(xHandleLen, yHandleLen) / 3;
 
         if (_freeformActive)
         {
@@ -293,6 +426,10 @@ public class CropForm : UnaryImageFormBase
             e.Graphics.DrawLine(handlePen, x2, yMid - yHandleLen / 2f, x2, yMid + yHandleLen / 2f);
             e.Graphics.DrawLine(handlePen, xMid - xHandleLen / 2f, y1, xMid + xHandleLen / 2f, y1);
             e.Graphics.DrawLine(handlePen, xMid - xHandleLen / 2f, y2, xMid + xHandleLen / 2f, y2);
+
+            // Draw middle handle
+            e.Graphics.DrawLine(handlePen, xMid, yMid - midHandleLen / 2f, xMid, yMid + midHandleLen / 2f);
+            e.Graphics.DrawLine(handlePen, xMid - midHandleLen / 2f, yMid, xMid + midHandleLen / 2f, yMid);
         }
     }
 
@@ -304,6 +441,7 @@ public class CropForm : UnaryImageFormBase
         Right = 2,
         Top = 4,
         Bottom = 8,
+        Middle = 16,
         TopLeft = Top | Left,
         TopRight = Top | Right,
         BottomLeft = Bottom | Left,

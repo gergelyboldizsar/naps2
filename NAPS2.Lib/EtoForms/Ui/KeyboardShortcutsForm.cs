@@ -47,7 +47,7 @@ public class KeyboardShortcutsForm : EtoDialogBase
         new(UiStrings.Print, c => c.KeyboardShortcuts.Print),
         Shortcut.Separator,
         new(UiStrings.View, c => c.KeyboardShortcuts.ImageView),
-        new(UiStrings.BlackAndWhite, c => c.KeyboardShortcuts.ImageView),
+        new(UiStrings.BlackAndWhite, c => c.KeyboardShortcuts.ImageBlackWhite),
         new(UiStrings.BrightnessContrast, c => c.KeyboardShortcuts.ImageBrightness),
         new(UiStrings.Crop, c => c.KeyboardShortcuts.ImageCrop),
         new(UiStrings.HueSaturation, c => c.KeyboardShortcuts.ImageHue),

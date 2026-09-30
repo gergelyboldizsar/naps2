@@ -542,6 +542,26 @@ namespace NAPS2 {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        internal static byte[] column_double {
+            get {
+                object obj = ResourceManager.GetObject("column_double", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] column_double_small {
+            get {
+                object obj = ResourceManager.GetObject("column_double_small", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         internal static byte[] combine {
             get {
                 object obj = ResourceManager.GetObject("combine", resourceCulture);
@@ -952,6 +972,26 @@ namespace NAPS2 {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        internal static byte[] help {
+            get {
+                object obj = ResourceManager.GetObject("help", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] help_small {
+            get {
+                object obj = ResourceManager.GetObject("help_small", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         internal static byte[] hourglass_grey {
             get {
                 object obj = ResourceManager.GetObject("hourglass_grey", resourceCulture);
@@ -1298,16 +1338,6 @@ namespace NAPS2 {
                 return ((byte[])(obj));
             }
         }
-
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] scanner_gray_32 {
-            get {
-                object obj = ResourceManager.GetObject("scanner_gray_32", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
@@ -1355,6 +1385,16 @@ namespace NAPS2 {
         internal static byte[] scanner_default_96 {
             get {
                 object obj = ResourceManager.GetObject("scanner_default_96", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] scanner_gray_32 {
+            get {
+                object obj = ResourceManager.GetObject("scanner_gray_32", resourceCulture);
                 return ((byte[])(obj));
             }
         }

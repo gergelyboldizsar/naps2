@@ -1,5 +1,6 @@
 using System.Drawing.Imaging;
 using System.Globalization;
+using Eto;
 using Eto.Drawing;
 using Eto.Forms;
 using Eto.WinForms;
@@ -31,11 +32,13 @@ public class WinFormsEtoPlatform : EtoPlatform
         WF.Application.EnableVisualStyles();
         WF.Application.SetCompatibleTextRenderingDefault(false);
         WF.Application.SetHighDpiMode(WF.HighDpiMode.PerMonitorV2);
-        // WinForms dark mode is experimental
-#pragma warning disable WFO5001
-        WF.Application.SetColorMode(ColorScheme.DarkMode ? WF.SystemColorMode.Dark : WF.SystemColorMode.Classic);
-#pragma warning restore WFO5001
+        SetSystemTheme();
         return new Application(Eto.Platforms.WinForms);
+    }
+
+    public override void SetSystemTheme()
+    {
+        WF.Application.SetColorMode(ColorScheme.DarkMode ? WF.SystemColorMode.Dark : WF.SystemColorMode.Classic);
     }
 
     public override IListView<T> CreateListView<T>(ListViewBehavior<T> behavior) =>
@@ -377,6 +380,18 @@ public class WinFormsEtoPlatform : EtoPlatform
             handler.Control.SetImage(memoryImage.AsBitmap());
         }
         WF.Clipboard.SetDataObject(handler.Control, true);
+    }
+
+    public override byte[] GetData(IDataObject dataObject, string typeName)
+    {
+        var obj = dataObject as Widget;
+        if (obj?.ControlObject is WF.DataObject wfObj)
+        {
+#pragma warning disable WFDEV005
+            return (byte[]) wfObj.GetData(typeName);
+#pragma warning restore WFDEV005
+        }
+        return base.GetData(dataObject, typeName);
     }
 
     public override void ConfigureDropDown(DropDown dropDown, bool scale)

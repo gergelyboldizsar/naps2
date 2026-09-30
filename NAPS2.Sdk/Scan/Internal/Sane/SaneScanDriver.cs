@@ -95,7 +95,7 @@ internal class SaneScanDriver : IScanDriver
                 _scanningContext.Logger.LogDebug("Opening SANE Device \"{ID}\" for caps", options.Device!.ID);
                 using var device = client.OpenDevice(options.Device.ID);
                 if (cancelToken.IsCancellationRequested) return new ScanCaps();
-                return GetSaneCaps(device, GetBackend(options.Device));
+                return GetSaneCaps(device, GetBackend(options.Device), client.LibraryVersion);
             }
             catch (SaneException ex)
             {
@@ -118,7 +118,7 @@ internal class SaneScanDriver : IScanDriver
         });
     }
 
-    internal ScanCaps GetSaneCaps(ISaneDevice device, string backend)
+    internal ScanCaps GetSaneCaps(ISaneDevice device, string backend, string libraryVersion)
     {
         var controller = new SaneOptionController(device, _scanningContext.Logger);
 
@@ -146,7 +146,8 @@ internal class SaneScanDriver : IScanDriver
         {
             MetadataCaps = new MetadataCaps
             {
-                DriverSubtype = backend
+                DriverSubtype = backend, 
+                ProtocolVersion = libraryVersion
             },
             PaperSourceCaps = flatbed != null || feeder != null || duplex != null
                 ? new PaperSourceCaps
@@ -438,7 +439,10 @@ internal class SaneScanDriver : IScanDriver
             var opt = controller.GetOption(name);
             if (opt != null)
             {
-                // TODO: Also implement bool value type
+                if (opt.Type == SaneValueType.Bool && bool.TryParse(value, out var boolValue))
+                {
+                    controller.TrySet(name, boolValue);
+                }
                 if (opt.Type == SaneValueType.String)
                 {
                     controller.TrySet(name, new SaneOptionMatcher([value]));

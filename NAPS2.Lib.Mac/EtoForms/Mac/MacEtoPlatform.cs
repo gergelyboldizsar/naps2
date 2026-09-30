@@ -1,10 +1,8 @@
-using System.Reflection;
 using Eto;
 using Eto.Drawing;
 using Eto.Forms;
 using Eto.Mac;
 using Eto.Mac.Drawing;
-using Eto.Mac.Forms;
 using NAPS2.EtoForms.Layout;
 using NAPS2.EtoForms.Widgets;
 using NAPS2.Images.Mac;
@@ -32,6 +30,10 @@ public class MacEtoPlatform : EtoPlatform
         var application = new Application(Platforms.macOS);
         ((NSApplication) application.ControlObject).Delegate = new MacAppDelegate();
         return application;
+    }
+
+    public override void SetSystemTheme()
+    {
     }
 
     public override void Invoke(Application application, Action action)
@@ -158,12 +160,41 @@ public class MacEtoPlatform : EtoPlatform
         {
             if (ReferenceEquals(evt.Window, view.Window))
             {
-                var args = evt.ToEtoKeyEventArgs();
+                var args = ToEtoKeyEventArgs(evt);
                 return handle(args.KeyData) ? null! : evt;
             }
             return evt;
         });
         control.UnLoad += (_, _) => NSEvent.RemoveMonitor(monitor);
+    }
+
+    private static KeyEventArgs ToEtoKeyEventArgs(NSEvent theEvent)
+    {
+        // Custom impl until fixed: https://github.com/picoe/Eto/issues/3002
+        char keyChar = !string.IsNullOrEmpty(theEvent.Characters) ? theEvent.Characters[0] : '\0';
+        Keys key = KeyMap.Convert(theEvent.CharactersIgnoringModifiers, 0);
+        if (key == Keys.None)
+        {
+            key = KeyMap.MapKey(theEvent.KeyCode, theEvent.ModifierFlags);
+        }
+        KeyEventArgs kpea;
+        Keys modifiers = theEvent.ModifierFlags.ToEto();
+        key |= modifiers;
+
+        KeyEventType keyEventType = theEvent.Type == NSEventType.KeyUp ? KeyEventType.KeyUp : KeyEventType.KeyDown;
+
+        if (key != Keys.None)
+        {
+            if (((modifiers & ~(Keys.Shift | Keys.Alt)) == 0))
+                kpea = new KeyEventArgs(key, keyEventType, keyChar);
+            else
+                kpea = new KeyEventArgs(key, keyEventType);
+        }
+        else
+        {
+            kpea = new KeyEventArgs(key, keyEventType, keyChar);
+        }
+        return kpea;
     }
 
     public override void AttachMouseWheelEvent(Control control, EventHandler<MouseEventArgs> eventHandler)
@@ -210,29 +241,6 @@ public class MacEtoPlatform : EtoPlatform
             var savePanel = (NSSavePanel) sd.ControlObject;
             // Ensure the correct extension is added on save
             savePanel.AllowsOtherFileTypes = false;
-        }
-
-        // Add some padding to the left of the file type selector
-        var dialogType = fileDialog is SaveFileDialog
-            ? typeof(MacFileDialog<NSSavePanel, SaveFileDialog>)
-            : typeof(MacFileDialog<NSOpenPanel, OpenFileDialog>);
-        var createMethod = dialogType
-            .GetMethod("Create", BindingFlags.Instance | BindingFlags.NonPublic);
-        // Ensure the accessory view is created first
-        createMethod?.Invoke(fileDialog.Handler, []);
-        var view = fileDialog switch
-        {
-            SaveFileDialog { ControlObject: NSSavePanel panel } => panel.AccessoryView,
-            OpenFileDialog { ControlObject: NSOpenPanel panel } => panel.AccessoryView,
-            _ => null
-        };
-        if (view != null)
-        {
-            var label = view.Subviews[0];
-            label.Frame = new CGRect(label.Frame.X + 20, label.Frame.Y, label.Frame.Width, label.Frame.Height);
-            var dropdown = view.Subviews[1];
-            dropdown.Frame = new CGRect(dropdown.Frame.X + 20, dropdown.Frame.Y, dropdown.Frame.Width,
-                dropdown.Frame.Height);
         }
     }
 }

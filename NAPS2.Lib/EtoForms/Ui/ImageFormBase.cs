@@ -1,12 +1,14 @@
 using Eto.Drawing;
 using Eto.Forms;
 using NAPS2.EtoForms.Layout;
+using NAPS2.EtoForms.Widgets;
 
 namespace NAPS2.EtoForms.Ui;
 
 public abstract class ImageFormBase : EtoDialogBase
 {
     private readonly ImageView _imageView = new();
+    private readonly HelpWidget _help = new();
 
     private readonly RefreshThrottle _renderThrottle;
 
@@ -37,14 +39,18 @@ public abstract class ImageFormBase : EtoDialogBase
     protected IMemoryImage? DisplayImage { get; set; }
     protected Drawable Overlay { get; } = new();
     protected int OverlayBorderSize { get; set; }
+    protected string? HelpText { get; set; }
 
     protected override void BuildLayout()
     {
+        _help.Text = HelpText ?? "";
         LayoutController.Content = L.Column(
             Overlay.Scale(),
             CreateControls(),
+            HelpText == null ? C.None() : _help.Label,
             L.Row(
                 CreateExtraButtons(),
+                HelpText == null ? C.None() : _help.Button,
                 C.Filler(),
                 L.OkCancel(
                     C.OkButton(this, beforeClose: Apply),
@@ -83,7 +89,13 @@ public abstract class ImageFormBase : EtoDialogBase
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        SetDefaultFocus();
         UpdateImageCoords();
+    }
+
+    protected virtual void SetDefaultFocus()
+    {
+        DefaultButton.Focus();
     }
 
     private void UpdateImageCoords()
