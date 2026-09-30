@@ -59,7 +59,8 @@ public class ScanDriverFactoryBuilder
             return Task.FromResult<ScanCaps>(null);
         }
 
-        public Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents, Action<IMemoryImage> callback)
+        public Task Scan(ScanOptions options, CancellationToken cancelToken, IScanEvents scanEvents,
+            Action<IMemoryImage, ScanPageMetadata?> callback)
         {
             foreach (var image in _scans.Dequeue())
             {
@@ -68,7 +69,7 @@ public class ScanDriverFactoryBuilder
                     return Task.CompletedTask;
                 }
                 scanEvents.PageStart();
-                callback(image);
+                callback(image, null);
             }
             return Task.CompletedTask;
         }

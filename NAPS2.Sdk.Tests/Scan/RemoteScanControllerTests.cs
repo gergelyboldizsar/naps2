@@ -50,12 +50,12 @@ public class RemoteScanControllerTests : ContextualTests
     {
         var scanDriver = Substitute.For<IScanDriver>();
         scanDriver.Scan(Arg.Any<ScanOptions>(), Arg.Any<CancellationToken>(), Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>()).ReturnsForAnyArgs(
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>()).ReturnsForAnyArgs(
             x =>
             {
-                var callback = (Action<IMemoryImage>) x[3];
+                var callback = (Action<IMemoryImage, ScanPageMetadata?>) x[3];
                 var image = LoadImage(ImageResources.skewed);
-                callback(image);
+                callback(image, null);
                 return Task.FromResult(true);
             });
         var controller = CreateControllerWithMockDriver(scanDriver);

@@ -1070,7 +1070,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 options.PageSize == PageSize.Letter),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
         AssertRecoveryCleanedUp();
     }
 
@@ -1108,7 +1108,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 options.PageSize == PageSize.A4),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
         AssertRecoveryCleanedUp();
     }
 
@@ -1148,7 +1148,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 options.OcrParams.LanguageCode == null),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
         AssertRecoveryCleanedUp();
     }
 
@@ -1181,7 +1181,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 options.Device.Name == "test_name1"),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
         AssertRecoveryCleanedUp();
     }
 
@@ -1206,7 +1206,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 options.Device.Name == "test_name2"),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
         AssertRecoveryCleanedUp();
     }
 
@@ -1229,7 +1229,7 @@ public class CommandLineIntegrationTests : ContextualTests
             Arg.Any<ScanOptions>(),
             Arg.Any<CancellationToken>(),
             Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>());
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>());
     }
 
     [Fact]
@@ -1266,7 +1266,7 @@ public class CommandLineIntegrationTests : ContextualTests
                 return Task.CompletedTask;
             });
         scanDriverMock.Scan(Arg.Any<ScanOptions>(), Arg.Any<CancellationToken>(), Arg.Any<IScanEvents>(),
-            Arg.Any<Action<IMemoryImage>>()).Returns(Task.CompletedTask);
+            Arg.Any<Action<IMemoryImage, ScanPageMetadata?>>()).Returns(Task.CompletedTask);
         return (scanDriverMock, scanDriverFactoryMock);
     }
 
