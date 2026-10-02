@@ -108,7 +108,9 @@ internal class TwainScanRunner
 
             _logger.LogDebug("NAPS2.TW - Enabling source");
             // FOPA: CaptureDriverSettings shows the driver's settings dialog only, without a scan.
-            var ui = capture ? SourceEnableMode.ShowUIOnly
+            // FOPA: with the native UI as well, the capture is a real scan through the driver's dialog:
+            // PaperStream IP does not keep what its settings-only dialog was given (measured 2026-10-02).
+            var ui = capture && !_options.UseNativeUI ? SourceEnableMode.ShowUIOnly
                 : _options.UseNativeUI ? SourceEnableMode.ShowUI : SourceEnableMode.NoUI;
             var enableHandle = _handleManager.GetEnableHandle(_options.DialogParent, useNativeUi);
             // Note that according to the twain spec, on Windows it is recommended to set the modal parameter to false
@@ -447,7 +449,7 @@ internal class TwainScanRunner
         {
             WriteDriverSettings(source, driverSettings);
         }
-        if (_options.TwainOptions.CaptureDriverSettings)
+        if (_options.TwainOptions.CaptureDriverSettings && !_options.UseNativeUI)
         {
             // The dialog shows what the driver has; nothing of ours goes over it.
             return;

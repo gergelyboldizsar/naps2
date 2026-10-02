@@ -61,6 +61,8 @@ public class TwainOptions
     /// FOPA: instead of scanning, show the driver's settings dialog only (MSG_ENABLEDSUIONLY) and
     /// report what was set there through ScanController.DriverSettingsCaptured. No image is produced.
     /// Needs the TWAIN worker or an in-process TWAIN session. See TwainCaps.SupportsDriverSettings.
+    /// With UseNativeUI the scan runs through the driver's dialog and the settings are reported after
+    /// it: a driver may not keep what its settings-only dialog was given (PaperStream IP does not).
     /// </summary>
     public bool CaptureDriverSettings { get; set; }
 

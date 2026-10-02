@@ -45,7 +45,9 @@ internal class RemoteScanController : IRemoteScanController
         {
             scanEvents.PageStart();
             progressThrottle.Reset();
-        }, progressThrottle.OnlyIfChanged, scanEvents.DeviceUriChanged);
+        }, progressThrottle.OnlyIfChanged, scanEvents.DeviceUriChanged,
+            // FOPA: the driver settings (CaptureDriverSettings) would be dropped here otherwise.
+            scanEvents.DriverSettingsCaptured);
         int pageNumber = 0;
         await driver.Scan(options, cancelToken, driverScanEvents, (image, pageMetadata) =>
         {
